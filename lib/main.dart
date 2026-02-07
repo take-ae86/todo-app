@@ -6,8 +6,11 @@ import 'screens/timeline_day_view.dart';
 import 'screens/memo_view.dart';
 import 'utils/constants.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'services/storage_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await StorageService.init();
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppProvider(),

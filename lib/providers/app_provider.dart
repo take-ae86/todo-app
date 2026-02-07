@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/todo_model.dart';
 import '../utils/constants.dart';
+import '../services/storage_service.dart';
 
 enum AppView { calendar, day, memo }
 
@@ -11,14 +12,25 @@ class AppProvider extends ChangeNotifier {
   DateTime _currentDate = DateTime(2026, 1, 26);
   DateTime _selectedDate = DateTime(2026, 1, 26);
   bool _darkMode = false;
+  bool _isLoaded = false;
 
   // Category colors
-  Map<String, Color> _catColors = {};
+  final Map<String, Color> _catColors = {};
 
   AppProvider() {
     for (int i = 0; i < kCategoryNames.length; i++) {
       _catColors[kCategoryNames[i]] = kGoogleColors[i % 12];
     }
+    _loadAllData();
+  }
+
+  // Load all data from Hive
+  Future<void> _loadAllData() async {
+    _todos = await StorageService.loadTodos();
+    _memoList = await StorageService.loadMemos();
+    _darkMode = await StorageService.loadDarkMode();
+    _isLoaded = true;
+    notifyListeners();
   }
 
   // Getters
@@ -29,6 +41,7 @@ class AppProvider extends ChangeNotifier {
   DateTime get selectedDate => _selectedDate;
   bool get darkMode => _darkMode;
   Map<String, Color> get catColors => _catColors;
+  bool get isLoaded => _isLoaded;
 
   // View navigation
   void setCurrentView(AppView view) {
@@ -48,12 +61,14 @@ class AppProvider extends ChangeNotifier {
 
   void toggleDarkMode() {
     _darkMode = !_darkMode;
+    StorageService.saveDarkMode(_darkMode);
     notifyListeners();
   }
 
   // Todos CRUD
   void addTodo(TodoItem todo) {
     _todos.add(todo);
+    StorageService.saveTodos(_todos);
     notifyListeners();
   }
 
@@ -61,12 +76,14 @@ class AppProvider extends ChangeNotifier {
     final index = _todos.indexWhere((t) => t.id == id);
     if (index >= 0) {
       _todos[index] = updatedTodo;
+      StorageService.saveTodos(_todos);
       notifyListeners();
     }
   }
 
   void removeTodo(int id) {
     _todos.removeWhere((t) => t.id == id);
+    StorageService.saveTodos(_todos);
     notifyListeners();
   }
 
@@ -74,6 +91,7 @@ class AppProvider extends ChangeNotifier {
     final index = _todos.indexWhere((t) => t.id == id);
     if (index >= 0) {
       _todos[index] = _todos[index].copyWith(done: !_todos[index].done);
+      StorageService.saveTodos(_todos);
       notifyListeners();
     }
   }
@@ -82,6 +100,7 @@ class AppProvider extends ChangeNotifier {
     final index = _todos.indexWhere((t) => t.id == id);
     if (index >= 0) {
       _todos[index] = _todos[index].copyWith(time: newTime);
+      StorageService.saveTodos(_todos);
       notifyListeners();
     }
   }
@@ -90,6 +109,7 @@ class AppProvider extends ChangeNotifier {
     final index = _todos.indexWhere((t) => t.id == id);
     if (index >= 0) {
       _todos[index] = _todos[index].copyWith(shoppingList: items);
+      StorageService.saveTodos(_todos);
       notifyListeners();
     }
   }
@@ -101,11 +121,13 @@ class AppProvider extends ChangeNotifier {
   // Memos CRUD
   void addMemo(MemoItem memo) {
     _memoList.insert(0, memo);
+    StorageService.saveMemos(_memoList);
     notifyListeners();
   }
 
   void removeMemo(int id) {
     _memoList.removeWhere((m) => m.id == id);
+    StorageService.saveMemos(_memoList);
     notifyListeners();
   }
 }
