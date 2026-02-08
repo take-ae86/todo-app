@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'providers/app_provider.dart';
@@ -12,12 +11,6 @@ import 'services/storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Disable all haptic feedback globally
-  HapticFeedback.lightImpact();
-  SystemChannels.platform.setMethodCallHandler((call) async {
-    if (call.method == 'HapticFeedback.vibrate') return null;
-    return null;
-  });
   await StorageService.init();
   runApp(
     ChangeNotifierProvider(

@@ -177,11 +177,15 @@ class _WeekRowWithBars extends StatelessWidget {
 
     final multiDayIds = bars.map((b) => b.todo.id).toSet();
 
+    // Check if any day in this week has a holiday
+    final weekHasHoliday = week.any((d) => d != null && getHoliday2026(d) != null);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final cellWidth = constraints.maxWidth / 7;
         final cellHeight = constraints.maxHeight;
-        const barStartY = 24.0;
+        // If any day in the week has a holiday, push bars below the holiday label + gap
+        final barStartY = weekHasHoliday ? 38.0 : 24.0;
         const barH = 14.0;
         const barGap = 1.0;
 
@@ -375,6 +379,7 @@ class _CalendarCell extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
               ),
+            if (holiday != null) const SizedBox(height: 2),
             if (multiDayBarSlots > 0) SizedBox(height: multiDayBarSlots * 15.0),
             // Single-day todo mini bars (height 16, max 4, icon + time/終日)
             if (singleDayTodos.isNotEmpty && maxMini > 0)

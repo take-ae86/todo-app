@@ -33,6 +33,10 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
+  <script>
+    // Disable vibration API completely (prevents haptic feedback on mobile browsers)
+    if (navigator.vibrate) { navigator.vibrate = function() { return false; }; }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
