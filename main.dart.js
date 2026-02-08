@@ -95326,7 +95326,11 @@ $0(){var s=this.a
 return s.ad(new A.ap8(s,this.b))},
 $S:0}
 A.ap8.prototype={
-$0(){return this.a.f=this.b},
+$0(){var s,r=this.a,q=r.f
+q===$&&A.a()
+s=this.b
+if(q!==s)r.y=A.b([],t.kT)
+r.f=s},
 $S:0}
 A.apg.prototype={
 $1(a){var s=this.a

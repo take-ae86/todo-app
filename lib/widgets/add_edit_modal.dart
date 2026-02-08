@@ -287,7 +287,12 @@ class _AddEditModalState extends State<AddEditModal> {
                       children: kCategoryNames.map((name) {
                         final isSelected = _category == name;
                         return GestureDetector(
-                          onTap: () => setState(() => _category = name),
+                          onTap: () => setState(() {
+                            if (_category != name) {
+                              _shoppingListDraft = [];
+                            }
+                            _category = name;
+                          }),
                           child: Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(12),
