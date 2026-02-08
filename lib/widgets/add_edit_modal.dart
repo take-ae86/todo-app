@@ -37,7 +37,7 @@ class _AddEditModalState extends State<AddEditModal> {
   late bool _isAllDay;
   late DateTime _startDate;
   late DateTime? _endDate;
-  late Map<String, DayDetail> _dayDetails;
+  late Map<String, List<DayDetail>> _dayDetails;
 
   bool get _isMultiDay =>
       _endDate != null &&
@@ -69,7 +69,7 @@ class _AddEditModalState extends State<AddEditModal> {
         ? List.from(e!.shoppingList)
         : [];
     _dayDetails = e?.dayDetails != null
-        ? Map.from(e!.dayDetails)
+        ? e!.dayDetails.map((k, v) => MapEntry(k, List<DayDetail>.from(v)))
         : {};
 
     _startDate = e != null
@@ -188,18 +188,18 @@ class _AddEditModalState extends State<AddEditModal> {
   }
 
   void _openDayDetail(String dateStr) {
-    final existing = _dayDetails[dateStr] ?? DayDetail(iconColor: _iconColor);
+    final existingList = _dayDetails[dateStr] ?? <DayDetail>[];
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _DayTimelineScreen(
           dateStr: dateStr,
           parentTitle: _titleController.text.trim(),
           parentColor: _iconColor,
-          detail: existing,
-          onSave: (dd) {
+          details: existingList,
+          onSave: (updatedList) {
             setState(() {
               _dayDetails = Map.from(_dayDetails);
-              _dayDetails[dateStr] = dd;
+              _dayDetails[dateStr] = updatedList;
             });
           },
         ),
@@ -439,7 +439,7 @@ class _AddEditModalState extends State<AddEditModal> {
                         runSpacing: 8,
                         children: _multiDayDates.map((dateStr) {
                           final d = TodoItem.strToDate(dateStr);
-                          final hasDetail = _dayDetails.containsKey(dateStr);
+                          final hasDetail = (_dayDetails[dateStr] ?? []).isNotEmpty;
                           return GestureDetector(
                             onTap: () => _openDayDetail(dateStr),
                             child: Container(
@@ -522,19 +522,19 @@ class _AddEditModalState extends State<AddEditModal> {
 }
 
 // === Day Timeline Screen (child timeline) ===
-// Full timeline with potchi frame, drag-move, modal creation - same as main TimelineDayView
+// Supports multiple bars per day with potchi frame, drag-move, modal creation
 class _DayTimelineScreen extends StatefulWidget {
   final String dateStr;
   final String parentTitle;
   final Color parentColor;
-  final DayDetail detail;
-  final ValueChanged<DayDetail> onSave;
+  final List<DayDetail> details;
+  final ValueChanged<List<DayDetail>> onSave;
 
   const _DayTimelineScreen({
     required this.dateStr,
     required this.parentTitle,
     required this.parentColor,
-    required this.detail,
+    required this.details,
     required this.onSave,
   });
 
@@ -544,11 +544,10 @@ class _DayTimelineScreen extends StatefulWidget {
 
 class _DayTimelineScreenState extends State<_DayTimelineScreen> {
   final ScrollController _scrollController = ScrollController();
-  late DayDetail _currentDetail;
-  bool _hasData = false; // whether child has saved data (show bar)
+  late List<DayDetail> _items; // multiple bars
 
-  // Drag state for existing bar
-  bool _isDragging = false;
+  // Drag state for existing bars
+  int? _draggingId;
   double _dragStartY = 0;
   int _dragStartMin = 0;
   bool _dragMoved = false;
@@ -558,7 +557,7 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
   bool _isCreating = false;
   int _createStartMin = 0;
   int _createEndMin = 60;
-  String? _creatingHandle; // 'top' or 'bottom'
+  String? _creatingHandle;
   double _handleDragStartY = 0;
   int _handleDragStartMin = 0;
 
@@ -569,13 +568,11 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
   @override
   void initState() {
     super.initState();
-    _currentDetail = widget.detail;
-    // If the detail has a non-empty category, it has been saved before
-    _hasData = _currentDetail.category.isNotEmpty;
+    _items = List.from(widget.details);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        final targetMin = _hasData
-            ? (_currentDetail.isAllDay ? 0 : _currentDetail.timeMinutes)
+        final targetMin = _items.isNotEmpty
+            ? (_items.first.isAllDay ? 0 : _items.first.timeMinutes)
             : 8 * 60;
         final scrollTo = (targetMin > 60 ? (targetMin - 60) : 0) * _hourHeight / 60;
         _scrollController.jumpTo(scrollTo.clamp(0.0, _totalHeight - 200));
@@ -606,47 +603,49 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 
+  void _saveAll() {
+    widget.onSave(List.from(_items));
+  }
+
   // --- Bar drag (move entire bar) ---
-  void _startBarDrag(double globalY) {
+  void _startBarDrag(DayDetail dd, double globalY) {
     setState(() {
-      _isDragging = true;
+      _draggingId = dd.id;
       _dragStartY = globalY;
-      _dragStartMin = _getMinutes(_currentDetail.time);
+      _dragStartMin = _getMinutes(dd.time);
       _dragMoved = false;
       _suppressClick = false;
     });
   }
 
   void _onBarDragMove(double globalY) {
-    if (!_isDragging) return;
+    if (_draggingId == null) return;
     final deltaY = globalY - _dragStartY;
     if (deltaY.abs() >= 3) _dragMoved = true;
+    final idx = _items.indexWhere((d) => d.id == _draggingId);
+    if (idx < 0) return;
+    final old = _items[idx];
     final nextMin = _snap15(_dragStartMin + deltaY.round());
-    final duration = _currentDetail.endTimeMinutes - _currentDetail.timeMinutes;
+    final duration = old.endTimeMinutes - old.timeMinutes;
     final newEndMin = (nextMin + duration).clamp(0, 1440);
     setState(() {
-      _currentDetail = DayDetail(
-        category: _currentDetail.category,
+      _items[idx] = old.copyWith(
         time: _minutesToTime(nextMin),
         endTime: _minutesToTime(newEndMin),
-        isAllDay: _currentDetail.isAllDay,
-        description: _currentDetail.description,
-        iconColor: _currentDetail.iconColor,
-        shoppingList: _currentDetail.shoppingList,
       );
     });
-    widget.onSave(_currentDetail);
+    _saveAll();
   }
 
   void _endBarDrag() {
-    if (!_isDragging) return;
+    if (_draggingId == null) return;
     if (_dragMoved) {
       _suppressClick = true;
       Future.delayed(const Duration(milliseconds: 250), () {
         if (mounted) setState(() => _suppressClick = false);
       });
     }
-    setState(() => _isDragging = false);
+    setState(() => _draggingId = null);
   }
 
   // --- Creation frame (potchi) ---
@@ -686,7 +685,6 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
   }
 
   void _openCreateModal() {
-    // Open child modal with potchi time range as initial time
     final initDetail = DayDetail(
       iconColor: widget.parentColor,
       time: _minutesToTime(_createStartMin),
@@ -700,31 +698,38 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
           detail: initDetail,
           onSave: (dd) {
             setState(() {
-              _currentDetail = dd;
-              _hasData = true;
+              _items.add(dd);
               _isCreating = false;
             });
-            widget.onSave(dd);
+            _saveAll();
           },
         ),
       ),
     );
   }
 
-  void _openEditModal() {
+  void _openEditModal(DayDetail dd) {
     if (_suppressClick) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _DayDetailModal(
           dateStr: widget.dateStr,
           parentTitle: widget.parentTitle,
-          detail: _currentDetail,
-          onSave: (dd) {
+          detail: dd,
+          onSave: (updated) {
             setState(() {
-              _currentDetail = dd;
-              _hasData = true;
+              final idx = _items.indexWhere((d) => d.id == dd.id);
+              if (idx >= 0) {
+                _items[idx] = updated;
+              }
             });
-            widget.onSave(dd);
+            _saveAll();
+          },
+          onDelete: () {
+            setState(() {
+              _items.removeWhere((d) => d.id == dd.id);
+            });
+            _saveAll();
           },
         ),
       ),
@@ -738,32 +743,6 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
     final d = TodoItem.strToDate(widget.dateStr);
     final dow = d.weekday % 7;
     final weekDayStr = kWeekDays[dow];
-
-    // Compute bar position (only if has data)
-    final int startMin;
-    final int endMin;
-    final String timeText;
-    final Color barColor;
-    if (_hasData) {
-      if (_currentDetail.isAllDay) {
-        startMin = 0;
-        endMin = 60;
-        timeText = '終日';
-      } else {
-        startMin = _currentDetail.timeMinutes;
-        endMin = _currentDetail.endTimeMinutes;
-        timeText = '${_currentDetail.time}〜${_minutesToTime(endMin)}';
-      }
-      barColor = _currentDetail.category.isNotEmpty
-          ? _currentDetail.iconColor
-          : widget.parentColor;
-    } else {
-      startMin = 0;
-      endMin = 0;
-      timeText = '';
-      barColor = widget.parentColor;
-    }
-    final barHeight = (endMin - startMin).toDouble().clamp(30.0, _totalHeight);
 
     return Scaffold(
       backgroundColor: darkMode ? const Color(0xFF111827) : kBgColor,
@@ -814,7 +793,7 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                 clipBehavior: Clip.hardEdge,
                 child: Listener(
                   onPointerMove: (e) {
-                    if (_isDragging) {
+                    if (_draggingId != null) {
                       _onBarDragMove(e.position.dy);
                     } else if (_creatingHandle != null) {
                       _onHandleDragMove(e.position.dy);
@@ -845,7 +824,7 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                                 onTap: () {
                                   if (_isCreating) {
                                     _cancelCreation();
-                                  } else if (!_hasData) {
+                                  } else {
                                     _startCreation(h);
                                   }
                                 },
@@ -875,8 +854,8 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                               ),
                             );
                           }),
-                          // Creation frame (potchi) - only when no data yet
-                          if (_isCreating && !_hasData)
+                          // Creation frame (potchi)
+                          if (_isCreating)
                             Positioned(
                               top: _createStartMin.toDouble(),
                               left: _leftMargin + 6,
@@ -968,35 +947,51 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                                 ),
                               ),
                             ),
-                          // Saved bar (draggable + tappable to edit)
-                          if (_hasData)
-                            Positioned(
-                              top: startMin.toDouble(),
+                          // All saved bars (draggable + tappable)
+                          ..._items.map((dd) {
+                            final int sMin;
+                            final int eMin;
+                            final String tText;
+                            if (dd.isAllDay) {
+                              sMin = 0;
+                              eMin = 60;
+                              tText = '終日';
+                            } else {
+                              sMin = dd.timeMinutes;
+                              eMin = dd.endTimeMinutes;
+                              tText = '${dd.time}〜${_minutesToTime(eMin)}';
+                            }
+                            final bHeight = (eMin - sMin).toDouble().clamp(30.0, _totalHeight);
+                            final bColor = dd.category.isNotEmpty ? dd.iconColor : widget.parentColor;
+                            final isDragging = _draggingId == dd.id;
+
+                            return Positioned(
+                              top: sMin.toDouble(),
                               left: _leftMargin + 6,
                               right: 8,
-                              height: barHeight,
+                              height: bHeight,
                               child: GestureDetector(
-                                onTap: _openEditModal,
-                                onVerticalDragStart: _currentDetail.isAllDay
+                                onTap: () => _openEditModal(dd),
+                                onVerticalDragStart: dd.isAllDay
                                     ? null
-                                    : (details) => _startBarDrag(details.globalPosition.dy),
-                                onVerticalDragUpdate: _currentDetail.isAllDay
+                                    : (details) => _startBarDrag(dd, details.globalPosition.dy),
+                                onVerticalDragUpdate: dd.isAllDay
                                     ? null
                                     : (details) => _onBarDragMove(details.globalPosition.dy),
-                                onVerticalDragEnd: _currentDetail.isAllDay
+                                onVerticalDragEnd: dd.isAllDay
                                     ? null
                                     : (_) => _endBarDrag(),
-                                onVerticalDragCancel: _currentDetail.isAllDay
+                                onVerticalDragCancel: dd.isAllDay
                                     ? null
                                     : () => _endBarDrag(),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: barColor.withValues(alpha: 0.12),
+                                    color: bColor.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border(left: BorderSide(color: barColor, width: 4)),
-                                    boxShadow: _isDragging
-                                        ? [BoxShadow(color: barColor.withValues(alpha: 0.3), blurRadius: 8)]
+                                    border: Border(left: BorderSide(color: bColor, width: 4)),
+                                    boxShadow: isDragging
+                                        ? [BoxShadow(color: bColor.withValues(alpha: 0.3), blurRadius: 8)]
                                         : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2)],
                                   ),
                                   child: Column(
@@ -1005,13 +1000,13 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                                     children: [
                                       Row(
                                         children: [
-                                          if (_currentDetail.category.isNotEmpty)
-                                            buildCategoryIcon(_currentDetail.category, size: 12, color: barColor),
-                                          if (_currentDetail.category.isNotEmpty)
+                                          if (dd.category.isNotEmpty)
+                                            buildCategoryIcon(dd.category, size: 12, color: bColor),
+                                          if (dd.category.isNotEmpty)
                                             const SizedBox(width: 4),
                                           Expanded(
                                             child: Text(
-                                              timeText,
+                                              tText,
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w500,
@@ -1026,7 +1021,8 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                                   ),
                                 ),
                               ),
-                            ),
+                            );
+                          }),
                         ],
                       ),
                     ),
@@ -1048,12 +1044,14 @@ class _DayDetailModal extends StatefulWidget {
   final String parentTitle;
   final DayDetail detail;
   final ValueChanged<DayDetail> onSave;
+  final VoidCallback? onDelete;
 
   const _DayDetailModal({
     required this.dateStr,
     required this.parentTitle,
     required this.detail,
     required this.onSave,
+    this.onDelete,
   });
 
   @override
@@ -1100,6 +1098,7 @@ class _DayDetailModalState extends State<_DayDetailModal> {
     }
 
     widget.onSave(DayDetail(
+      id: widget.detail.id,
       category: _category,
       time: saveTime,
       endTime: saveEndTime,
@@ -1189,6 +1188,21 @@ class _DayDetailModalState extends State<_DayDetailModal> {
               ),
             ),
           ),
+          if (widget.onDelete != null) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () {
+                widget.onDelete!();
+                Navigator.of(context).pop();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: Colors.red[50], shape: BoxShape.circle),
+                child: Icon(Icons.delete_outline, size: 18, color: Colors.red[400]),
+              ),
+            ),
+          ],
+          const SizedBox(width: 4),
           GestureDetector(
             onTap: _save,
             child: Container(

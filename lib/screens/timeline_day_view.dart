@@ -377,8 +377,9 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                         final String timeText;
                         final bool isMultiDay = t.isMultiDay;
 
-                        // For multi-day todos, check if there's a child detail for this day
-                        final dayDetail = isMultiDay ? t.dayDetails[dateStr] : null;
+                        // For multi-day todos, check if there's child details for this day
+                        final dayDetailList = isMultiDay ? t.dayDetails[dateStr] : null;
+                        final dayDetail = (dayDetailList != null && dayDetailList.isNotEmpty) ? dayDetailList.first : null;
 
                         if (isMultiDay) {
                           // Multi-day parent bar: show title + period

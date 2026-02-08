@@ -18,6 +18,7 @@ class ShoppingItem {
 
 /// Per-day detail for multi-day TODOs
 class DayDetail {
+  final int id;
   final String category;
   final String time;
   final String? endTime;
@@ -27,6 +28,7 @@ class DayDetail {
   final Color iconColor;
 
   DayDetail({
+    int? id,
     this.category = '',
     this.time = '09:00',
     this.endTime,
@@ -34,9 +36,10 @@ class DayDetail {
     this.description = '',
     this.shoppingList = const [],
     this.iconColor = const Color(0xFF5D99C6),
-  });
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch;
 
   DayDetail copyWith({
+    int? id,
     String? category,
     String? time,
     String? endTime,
@@ -47,6 +50,7 @@ class DayDetail {
     bool clearEndTime = false,
   }) {
     return DayDetail(
+      id: id ?? this.id,
       category: category ?? this.category,
       time: time ?? this.time,
       endTime: clearEndTime ? null : (endTime ?? this.endTime),
@@ -84,7 +88,7 @@ class TodoItem {
   final String date; // dateStr like "2026-01-26"
   final bool done;
   final List<ShoppingItem> shoppingList;
-  final Map<String, DayDetail> dayDetails; // key = dateStr e.g. "2026-02-07"
+  final Map<String, List<DayDetail>> dayDetails; // key = dateStr, value = list of details for that day
 
   TodoItem({
     required this.id,
@@ -115,7 +119,7 @@ class TodoItem {
     String? date,
     bool? done,
     List<ShoppingItem>? shoppingList,
-    Map<String, DayDetail>? dayDetails,
+    Map<String, List<DayDetail>>? dayDetails,
     bool clearEndTime = false,
     bool clearEndDate = false,
   }) {

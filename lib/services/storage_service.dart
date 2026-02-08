@@ -44,7 +44,8 @@ class StorageService {
         'text': s.text,
         'done': s.done,
       }).toList(),
-      'dayDetails': t.dayDetails.map((key, dd) => MapEntry(key, {
+      'dayDetails': t.dayDetails.map((key, list) => MapEntry(key, list.map((dd) => {
+        'id': dd.id,
         'category': dd.category,
         'time': dd.time,
         'endTime': dd.endTime,
@@ -56,7 +57,7 @@ class StorageService {
           'text': s.text,
           'done': s.done,
         }).toList(),
-      })),
+      }).toList())),
     };
   }
 
@@ -88,30 +89,43 @@ class StorageService {
     );
   }
 
-  static Map<String, DayDetail> _parseDayDetails(dynamic raw) {
+  static Map<String, List<DayDetail>> _parseDayDetails(dynamic raw) {
     if (raw == null) return {};
     final map = Map<String, dynamic>.from(raw);
     return map.map((key, value) {
-      final dd = Map<String, dynamic>.from(value);
-      final shopRaw = dd['shoppingList'] as List? ?? [];
-      final shopList = shopRaw.map((s) {
-        final sm = Map<String, dynamic>.from(s);
-        return ShoppingItem(
-          id: sm['id'] as int,
-          text: sm['text'] as String,
-          done: sm['done'] as bool? ?? false,
-        );
-      }).toList();
-      return MapEntry(key, DayDetail(
-        category: dd['category'] as String? ?? '',
-        time: dd['time'] as String? ?? '09:00',
-        endTime: dd['endTime'] as String?,
-        isAllDay: dd['isAllDay'] as bool? ?? false,
-        description: dd['description'] as String? ?? '',
-        iconColor: dd['iconColor'] != null ? Color(dd['iconColor'] as int) : const Color(0xFF5D99C6),
-        shoppingList: shopList,
-      ));
+      // Support both old format (single map) and new format (list of maps)
+      if (value is List) {
+        // New format: list of DayDetail maps
+        final list = value.map((item) => _parseSingleDayDetail(Map<String, dynamic>.from(item))).toList();
+        return MapEntry(key, list);
+      } else {
+        // Old format: single DayDetail map -> convert to list
+        final dd = _parseSingleDayDetail(Map<String, dynamic>.from(value));
+        return MapEntry(key, [dd]);
+      }
     });
+  }
+
+  static DayDetail _parseSingleDayDetail(Map<String, dynamic> dd) {
+    final shopRaw = dd['shoppingList'] as List? ?? [];
+    final shopList = shopRaw.map((s) {
+      final sm = Map<String, dynamic>.from(s);
+      return ShoppingItem(
+        id: sm['id'] as int,
+        text: sm['text'] as String,
+        done: sm['done'] as bool? ?? false,
+      );
+    }).toList();
+    return DayDetail(
+      id: dd['id'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      category: dd['category'] as String? ?? '',
+      time: dd['time'] as String? ?? '09:00',
+      endTime: dd['endTime'] as String?,
+      isAllDay: dd['isAllDay'] as bool? ?? false,
+      description: dd['description'] as String? ?? '',
+      iconColor: dd['iconColor'] != null ? Color(dd['iconColor'] as int) : const Color(0xFF5D99C6),
+      shoppingList: shopList,
+    );
   }
 
   // ===== MEMOS =====
