@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'providers/app_provider.dart';
 import 'screens/calendar_month_view.dart';
 import 'screens/timeline_day_view.dart';
@@ -29,11 +30,28 @@ class TaskCalendarApp extends StatelessWidget {
     return MaterialApp(
       title: 'TODOアプリ',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('ja'),
+      supportedLocales: const [Locale('ja')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         brightness: darkMode ? Brightness.dark : Brightness.light,
         colorSchemeSeed: kThemeColor,
         useMaterial3: true,
         fontFamily: 'NotoSansJP',
+        splashFactory: NoSplash.splashFactory,
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(enableFeedback: false),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(enableFeedback: false),
+        ),
+        iconButtonTheme: IconButtonThemeData(
+          style: ButtonStyle(tapTargetSize: MaterialTapTargetSize.padded),
+        ),
         textTheme: const TextTheme(
           displayLarge: TextStyle(fontFamily: 'NotoSansJP', fontWeight: FontWeight.w500),
           displayMedium: TextStyle(fontFamily: 'NotoSansJP', fontWeight: FontWeight.w500),

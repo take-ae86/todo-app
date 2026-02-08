@@ -22,6 +22,9 @@ class TodoItem {
   final String category;
   final String description;
   final String time; // "HH:mm"
+  final String? endTime; // "HH:mm" optional
+  final String? endDate; // "yyyy-MM-dd" optional (for multi-day)
+  final bool isAllDay;
   final Color iconColor;
   final String date; // dateStr like "2026-01-26"
   final bool done;
@@ -33,6 +36,9 @@ class TodoItem {
     required this.category,
     this.description = '',
     required this.time,
+    this.endTime,
+    this.endDate,
+    this.isAllDay = false,
     required this.iconColor,
     required this.date,
     this.done = false,
@@ -45,10 +51,15 @@ class TodoItem {
     String? category,
     String? description,
     String? time,
+    String? endTime,
+    String? endDate,
+    bool? isAllDay,
     Color? iconColor,
     String? date,
     bool? done,
     List<ShoppingItem>? shoppingList,
+    bool clearEndTime = false,
+    bool clearEndDate = false,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -56,6 +67,9 @@ class TodoItem {
       category: category ?? this.category,
       description: description ?? this.description,
       time: time ?? this.time,
+      endTime: clearEndTime ? null : (endTime ?? this.endTime),
+      endDate: clearEndDate ? null : (endDate ?? this.endDate),
+      isAllDay: isAllDay ?? this.isAllDay,
       iconColor: iconColor ?? this.iconColor,
       date: date ?? this.date,
       done: done ?? this.done,
@@ -74,6 +88,28 @@ class TodoItem {
   int get timeMinutes {
     final parts = time.split(':');
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
+  int get endTimeMinutes {
+    if (endTime != null) {
+      final parts = endTime!.split(':');
+      return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    }
+    return timeMinutes + 60; // default 1 hour
+  }
+
+  bool get isMultiDay => endDate != null && endDate != date;
+
+  /// All dates from start to end (for multi-day display)
+  List<String> get allDates {
+    if (!isMultiDay) return [date];
+    final start = strToDate(date);
+    final end = strToDate(endDate!);
+    final List<String> dates = [];
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+      dates.add(dateToStr(d));
+    }
+    return dates;
   }
 }
 

@@ -16,22 +16,27 @@ class TimelineDayView extends StatefulWidget {
 class _TimelineDayViewState extends State<TimelineDayView> {
   final ScrollController _scrollController = ScrollController();
 
-  // Drag state
+  // Drag state for existing bars
   int? _draggingId;
   double _dragStartY = 0;
   int _dragStartMin = 0;
   bool _dragMoved = false;
   bool _suppressClick = false;
 
+  // Creation frame state (potchi)
+  bool _isCreating = false;
+  int _createStartMin = 0;
+  int _createEndMin = 60;
+  String? _creatingHandle; // 'top' or 'bottom'
+
   static const double _hourHeight = 60.0;
-  static const double _totalHeight = 24 * _hourHeight; // 1440
+  static const double _totalHeight = 24 * _hourHeight;
   static const double _leftMargin = 50.0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Scroll to 8:00 initially
       if (_scrollController.hasClients) {
         _scrollController.jumpTo(8 * _hourHeight);
       }
@@ -44,9 +49,9 @@ class _TimelineDayViewState extends State<TimelineDayView> {
     super.dispose();
   }
 
-  int _snap30(int mins) {
-    final snapped = ((mins + 15) ~/ 30) * 30;
-    return snapped.clamp(0, 1430);
+  int _snap15(int mins) {
+    final snapped = ((mins + 7) ~/ 15) * 15;
+    return snapped.clamp(0, 1425);
   }
 
   String _minutesToTime(int mins) {
@@ -61,6 +66,7 @@ class _TimelineDayViewState extends State<TimelineDayView> {
     return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 
+  // --- Bar drag (move entire bar) ---
   void _startDrag(TodoItem todo, double globalY) {
     setState(() {
       _draggingId = todo.id;
@@ -76,7 +82,7 @@ class _TimelineDayViewState extends State<TimelineDayView> {
     final deltaY = globalY - _dragStartY;
     if (deltaY.abs() >= 3) _dragMoved = true;
 
-    final nextMin = _snap30(_dragStartMin + deltaY.round());
+    final nextMin = _snap15(_dragStartMin + deltaY.round());
     final nextTime = _minutesToTime(nextMin);
 
     final prov = context.read<AppProvider>();
@@ -88,17 +94,48 @@ class _TimelineDayViewState extends State<TimelineDayView> {
     if (_dragMoved) {
       _suppressClick = true;
       Future.delayed(const Duration(milliseconds: 250), () {
-        if (mounted) {
-          setState(() => _suppressClick = false);
-        }
+        if (mounted) setState(() => _suppressClick = false);
       });
     }
+    setState(() => _draggingId = null);
+  }
+
+  // --- Creation frame (potchi) ---
+  void _startCreation(int hour) {
+    final startMin = hour * 60;
     setState(() {
-      _draggingId = null;
+      _isCreating = true;
+      _createStartMin = startMin;
+      _createEndMin = startMin + 60;
     });
   }
 
-  void _showAddModal(BuildContext context, int hour) {
+  void _cancelCreation() {
+    setState(() => _isCreating = false);
+  }
+
+  void _startHandleDrag(String handle) {
+    setState(() => _creatingHandle = handle);
+  }
+
+  void _onHandleDragMove(double deltaY) {
+    if (_creatingHandle == null) return;
+    setState(() {
+      if (_creatingHandle == 'top') {
+        final newStart = _snap15(_createStartMin + deltaY.round());
+        if (newStart <= _createEndMin - 15) _createStartMin = newStart;
+      } else {
+        final newEnd = _snap15(_createEndMin + deltaY.round());
+        if (newEnd >= _createStartMin + 15) _createEndMin = newEnd;
+      }
+    });
+  }
+
+  void _endHandleDrag() {
+    setState(() => _creatingHandle = null);
+  }
+
+  void _openCreateModal() {
     final prov = context.read<AppProvider>();
     showModalBottomSheet(
       context: context,
@@ -106,9 +143,10 @@ class _TimelineDayViewState extends State<TimelineDayView> {
       backgroundColor: Colors.transparent,
       builder: (_) => AddEditModal(
         targetDate: prov.selectedDate,
-        initialHour: hour,
+        initialMinute: _createStartMin,
+        initialEndTime: _minutesToTime(_createEndMin),
       ),
-    );
+    ).then((_) => _cancelCreation());
   }
 
   void _showEditModal(BuildContext context, TodoItem todo) {
@@ -140,17 +178,9 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                 onTap: () => prov.setCurrentView(AppView.calendar),
                 child: Row(
                   children: [
-                    Icon(Icons.arrow_back,
-                        size: 20,
-                        color: prov.darkMode ? Colors.white : kDarkTextColor),
+                    Icon(Icons.arrow_back, size: 20, color: prov.darkMode ? Colors.white : kDarkTextColor),
                     const SizedBox(width: 4),
-                    Text(
-                      'カレンダーへ',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        color: prov.darkMode ? Colors.white : kDarkTextColor,
-                      ),
-                    ),
+                    Text('カレンダーへ', style: TextStyle(fontWeight: FontWeight.w500, color: prov.darkMode ? Colors.white : kDarkTextColor)),
                   ],
                 ),
               ),
@@ -159,23 +189,11 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                 children: [
                   Text(
                     '${prov.selectedDate.month}月${prov.selectedDate.day}日',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      color: prov.darkMode ? Colors.white : kDarkTextColor,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: prov.darkMode ? Colors.white : kDarkTextColor),
                   ),
                   Text(
-                    holiday ??
-                        '${kWeekDays[prov.selectedDate.weekday % 7]}曜日',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: holiday != null
-                          ? Colors.red
-                          : (prov.darkMode
-                              ? Colors.white38
-                              : Colors.black38),
-                    ),
+                    holiday ?? '${kWeekDays[prov.selectedDate.weekday % 7]}曜日',
+                    style: TextStyle(fontSize: 12, color: holiday != null ? Colors.red : (prov.darkMode ? Colors.white38 : Colors.black38)),
                   ),
                 ],
               ),
@@ -187,19 +205,27 @@ class _TimelineDayViewState extends State<TimelineDayView> {
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 4),
             decoration: BoxDecoration(
-              color: prov.darkMode
-                  ? const Color(0xFF1F2937)
-                  : Colors.white,
+              color: prov.darkMode ? const Color(0xFF1F2937) : Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: prov.darkMode ? Colors.grey[800]! : Colors.grey[200]!,
-              ),
+              border: Border.all(color: prov.darkMode ? Colors.grey[800]! : Colors.grey[200]!),
             ),
             clipBehavior: Clip.hardEdge,
             child: Listener(
-              onPointerMove: (e) => _onDragMove(e.position.dy),
-              onPointerUp: (_) => _endDrag(),
-              onPointerCancel: (_) => _endDrag(),
+              onPointerMove: (e) {
+                if (_draggingId != null) {
+                  _onDragMove(e.position.dy);
+                } else if (_creatingHandle != null) {
+                  _onHandleDragMove(e.delta.dy);
+                }
+              },
+              onPointerUp: (_) {
+                _endDrag();
+                _endHandleDrag();
+              },
+              onPointerCancel: (_) {
+                _endDrag();
+                _endHandleDrag();
+              },
               child: SingleChildScrollView(
                 controller: _scrollController,
                 child: SizedBox(
@@ -214,15 +240,17 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                           right: 0,
                           height: _hourHeight,
                           child: GestureDetector(
-                            onTap: () => _showAddModal(context, h),
+                            onTap: () {
+                              if (_isCreating) {
+                                _cancelCreation();
+                              } else {
+                                _startCreation(h);
+                              }
+                            },
                             child: Container(
                               decoration: BoxDecoration(
                                 border: Border(
-                                  top: BorderSide(
-                                    color: prov.darkMode
-                                        ? Colors.grey[800]!
-                                        : Colors.grey[100]!,
-                                  ),
+                                  top: BorderSide(color: prov.darkMode ? Colors.grey[800]! : Colors.grey[100]!),
                                 ),
                               ),
                               child: Row(
@@ -230,75 +258,131 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                   SizedBox(
                                     width: _leftMargin,
                                     child: Padding(
-                                      padding: const EdgeInsets.only(
-                                          right: 4, top: 2),
+                                      padding: const EdgeInsets.only(right: 4, top: 2),
                                       child: Text(
                                         '$h:00',
                                         textAlign: TextAlign.right,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Colors.grey[600],
-                                        ),
+                                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
                                       ),
                                     ),
                                   ),
-                                  Expanded(
-                                    child: Container(
-                                      color: Colors.transparent,
-                                    ),
-                                  ),
+                                  Expanded(child: Container(color: Colors.transparent)),
                                 ],
                               ),
                             ),
                           ),
                         );
                       }),
-                      // Todo blocks
-                      ...dayTodos.map((t) {
-                        final topPos = t.timeMinutes.toDouble();
-                        final bgColor =
-                            t.iconColor.withValues(alpha: 0.12);
-                        final isDragging = _draggingId == t.id;
-                        return Positioned(
-                          top: topPos,
+                      // Creation frame (potchi)
+                      if (_isCreating)
+                        Positioned(
+                          top: _createStartMin.toDouble(),
                           left: _leftMargin + 6,
                           right: 8,
-                          height: 50,
+                          height: (_createEndMin - _createStartMin).toDouble(),
+                          child: GestureDetector(
+                            onTap: _openCreateModal,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: kThemeColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: kThemeColor, width: 1.5),
+                              ),
+                              child: Stack(
+                                children: [
+                                  // Top handle
+                                  Positioned(
+                                    top: -6,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                      child: GestureDetector(
+                                        onVerticalDragStart: (_) => _startHandleDrag('top'),
+                                        onVerticalDragUpdate: (d) => _onHandleDragMove(d.delta.dy),
+                                        onVerticalDragEnd: (_) => _endHandleDrag(),
+                                        child: Container(
+                                          width: 24,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: kThemeColor,
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  // Bottom handle
+                                  Positioned(
+                                    bottom: -6,
+                                    left: 0,
+                                    right: 0,
+                                    child: Center(
+                                      child: GestureDetector(
+                                        onVerticalDragStart: (_) => _startHandleDrag('bottom'),
+                                        onVerticalDragUpdate: (d) => _onHandleDragMove(d.delta.dy),
+                                        onVerticalDragEnd: (_) => _endHandleDrag(),
+                                        child: Container(
+                                          width: 24,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: kThemeColor,
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  // Time labels
+                                  Center(
+                                    child: Text(
+                                      '${_minutesToTime(_createStartMin)} 〜 ${_minutesToTime(_createEndMin)}',
+                                      style: TextStyle(fontSize: 11, color: kThemeColor, fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      // Todo blocks
+                      ...dayTodos.map((t) {
+                        final int startMin;
+                        final int endMin;
+                        final String timeText;
+
+                        if (t.isAllDay) {
+                          startMin = 0;
+                          endMin = 60;
+                          timeText = '終日';
+                        } else {
+                          startMin = t.timeMinutes;
+                          endMin = t.endTimeMinutes;
+                          timeText = '${t.time}〜${_minutesToTime(endMin)}';
+                        }
+
+                        final barHeight = (endMin - startMin).toDouble().clamp(30.0, _totalHeight);
+                        final isDragging = _draggingId == t.id;
+
+                        return Positioned(
+                          top: startMin.toDouble(),
+                          left: _leftMargin + 6,
+                          right: 8,
+                          height: barHeight,
                           child: GestureDetector(
                             onTap: () => _showEditModal(context, t),
-                            onVerticalDragStart: (details) =>
-                                _startDrag(t, details.globalPosition.dy),
-                            onVerticalDragUpdate: (details) =>
-                                _onDragMove(details.globalPosition.dy),
+                            onVerticalDragStart: (details) => _startDrag(t, details.globalPosition.dy),
+                            onVerticalDragUpdate: (details) => _onDragMove(details.globalPosition.dy),
                             onVerticalDragEnd: (_) => _endDrag(),
                             onVerticalDragCancel: () => _endDrag(),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                               decoration: BoxDecoration(
-                                color: bgColor,
+                                color: t.iconColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border(
-                                  left: BorderSide(
-                                    color: t.iconColor,
-                                    width: 4,
-                                  ),
-                                ),
+                                border: Border(left: BorderSide(color: t.iconColor, width: 4)),
                                 boxShadow: isDragging
-                                    ? [
-                                        BoxShadow(
-                                          color: t.iconColor
-                                              .withValues(alpha: 0.3),
-                                          blurRadius: 8,
-                                        ),
-                                      ]
-                                    : [
-                                        BoxShadow(
-                                          color: Colors.black
-                                              .withValues(alpha: 0.05),
-                                          blurRadius: 2,
-                                        ),
-                                      ],
+                                    ? [BoxShadow(color: t.iconColor.withValues(alpha: 0.3), blurRadius: 8)]
+                                    : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2)],
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,41 +393,26 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
-                                      color: prov.darkMode
-                                          ? Colors.white
-                                          : Colors.grey[700],
+                                      color: prov.darkMode ? Colors.white : Colors.grey[700],
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
-                                      buildCategoryIcon(
-                                        t.category,
-                                        size: 10,
-                                        color: t.iconColor,
-                                      ),
+                                      buildCategoryIcon(t.category, size: 10, color: t.iconColor),
                                       const SizedBox(width: 4),
                                       Text(
                                         t.category,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: prov.darkMode
-                                              ? Colors.white54
-                                              : Colors.black54,
-                                        ),
+                                        style: TextStyle(fontSize: 10, color: prov.darkMode ? Colors.white54 : Colors.black54),
                                       ),
                                       const SizedBox(width: 6),
                                       Text(
-                                        t.time,
+                                        timeText,
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: prov.darkMode
-                                              ? Colors.white30
-                                              : Colors.black38,
-                                          fontFeatures: const [
-                                            FontFeature.tabularFigures()
-                                          ],
+                                          color: prov.darkMode ? Colors.white30 : Colors.black38,
+                                          fontFeatures: const [FontFeature.tabularFigures()],
                                         ),
                                       ),
                                     ],

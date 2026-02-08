@@ -99,10 +99,30 @@ class AppProvider extends ChangeNotifier {
   void updateTodoTime(int id, String newTime) {
     final index = _todos.indexWhere((t) => t.id == id);
     if (index >= 0) {
-      _todos[index] = _todos[index].copyWith(time: newTime);
+      final old = _todos[index];
+      // Move endTime by the same delta to keep duration
+      final oldMin = _timeToMin(old.time);
+      final newMin = _timeToMin(newTime);
+      final delta = newMin - oldMin;
+      String? newEndTime;
+      if (old.endTime != null) {
+        final endMin = (_timeToMin(old.endTime!) + delta).clamp(0, 1439);
+        newEndTime = _minToTime(endMin);
+      }
+      _todos[index] = old.copyWith(time: newTime, endTime: newEndTime);
       StorageService.saveTodos(_todos);
       notifyListeners();
     }
+  }
+
+  static int _timeToMin(String t) {
+    final p = t.split(':');
+    return int.parse(p[0]) * 60 + int.parse(p[1]);
+  }
+
+  static String _minToTime(int m) {
+    final c = m.clamp(0, 1439);
+    return '${(c ~/ 60).toString().padLeft(2, '0')}:${(c % 60).toString().padLeft(2, '0')}';
   }
 
   void updateTodoShoppingList(int id, List<ShoppingItem> items) {
@@ -115,7 +135,14 @@ class AppProvider extends ChangeNotifier {
   }
 
   List<TodoItem> todosForDate(String dateStr) {
-    return _todos.where((t) => t.date == dateStr).toList();
+    return _todos.where((t) {
+      if (t.date == dateStr) return true;
+      // Multi-day: check if dateStr falls within range
+      if (t.isMultiDay) {
+        return t.allDates.contains(dateStr);
+      }
+      return false;
+    }).toList();
   }
 
   // Memos CRUD
