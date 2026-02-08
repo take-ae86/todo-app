@@ -247,8 +247,20 @@ class _WeekRowWithBars extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: Row(
                       children: [
-                        if (isStart)
-                          buildCategoryIcon(bar.todo.category, size: 9, color: bar.todo.iconColor),
+                        if (isStart) ...[
+                          Flexible(
+                            child: Text(
+                              '${bar.todo.title} ${_formatPeriod(bar.todo)}',
+                              style: TextStyle(
+                                fontSize: 7,
+                                fontWeight: FontWeight.w500,
+                                color: bar.todo.iconColor,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ),
+                        ],
                         const Spacer(),
                       ],
                     ),
@@ -268,6 +280,13 @@ class _BarInfo {
   final int startCol;
   final int endCol;
   _BarInfo({required this.todo, required this.startCol, required this.endCol});
+}
+
+String _formatPeriod(TodoItem t) {
+  if (!t.isMultiDay) return '';
+  final s = TodoItem.strToDate(t.date);
+  final e = TodoItem.strToDate(t.endDate!);
+  return '${s.month}/${s.day}〜${e.month}/${e.day}';
 }
 
 class _DarkModeToggle extends StatelessWidget {

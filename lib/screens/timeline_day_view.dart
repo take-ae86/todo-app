@@ -375,8 +375,24 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                         final int startMin;
                         final int endMin;
                         final String timeText;
+                        final bool isMultiDay = t.isMultiDay;
 
-                        if (t.isAllDay) {
+                        // For multi-day todos, check if there's a child detail for this day
+                        final dayDetail = isMultiDay ? t.dayDetails[dateStr] : null;
+
+                        if (isMultiDay) {
+                          // Multi-day parent bar: show title + period
+                          if (dayDetail != null && !dayDetail.isAllDay) {
+                            startMin = dayDetail.timeMinutes;
+                            endMin = dayDetail.endTimeMinutes;
+                          } else {
+                            startMin = 0;
+                            endMin = 60;
+                          }
+                          final startD = TodoItem.strToDate(t.date);
+                          final endD = TodoItem.strToDate(t.endDate!);
+                          timeText = '${startD.month}/${startD.day}〜${endD.month}/${endD.day}';
+                        } else if (t.isAllDay) {
                           startMin = 0;
                           endMin = 60;
                           timeText = '終日';
@@ -396,16 +412,21 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                           height: barHeight,
                           child: GestureDetector(
                             onTap: () => _showEditModal(context, t),
-                            onVerticalDragStart: (details) => _startDrag(t, details.globalPosition.dy),
-                            onVerticalDragUpdate: (details) => _onDragMove(details.globalPosition.dy),
-                            onVerticalDragEnd: (_) => _endDrag(),
-                            onVerticalDragCancel: () => _endDrag(),
+                            onVerticalDragStart: isMultiDay ? null : (details) => _startDrag(t, details.globalPosition.dy),
+                            onVerticalDragUpdate: isMultiDay ? null : (details) => _onDragMove(details.globalPosition.dy),
+                            onVerticalDragEnd: isMultiDay ? null : (_) => _endDrag(),
+                            onVerticalDragCancel: isMultiDay ? null : () => _endDrag(),
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                               decoration: BoxDecoration(
-                                color: t.iconColor.withValues(alpha: 0.12),
+                                color: isMultiDay
+                                    ? kThemeColor.withValues(alpha: 0.08)
+                                    : t.iconColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border(left: BorderSide(color: t.iconColor, width: 4)),
+                                border: Border(left: BorderSide(
+                                  color: isMultiDay ? kThemeColor : t.iconColor,
+                                  width: 4,
+                                )),
                                 boxShadow: isDragging
                                     ? [BoxShadow(color: t.iconColor.withValues(alpha: 0.3), blurRadius: 8)]
                                     : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2)],
@@ -424,25 +445,34 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      buildCategoryIcon(t.category, size: 10, color: t.iconColor),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        t.category,
-                                        style: TextStyle(fontSize: 10, color: prov.darkMode ? Colors.white54 : Colors.black54),
+                                  if (isMultiDay)
+                                    Text(
+                                      timeText,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: prov.darkMode ? Colors.white30 : Colors.black38,
                                       ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        timeText,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: prov.darkMode ? Colors.white30 : Colors.black38,
-                                          fontFeatures: const [FontFeature.tabularFigures()],
+                                    )
+                                  else
+                                    Row(
+                                      children: [
+                                        buildCategoryIcon(t.category, size: 10, color: t.iconColor),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          t.category,
+                                          style: TextStyle(fontSize: 10, color: prov.darkMode ? Colors.white54 : Colors.black54),
                                         ),
-                                      ),
-                                    ],
-                                  ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          timeText,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: prov.darkMode ? Colors.white30 : Colors.black38,
+                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                 ],
                               ),
                             ),

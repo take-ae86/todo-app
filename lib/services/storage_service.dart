@@ -44,6 +44,19 @@ class StorageService {
         'text': s.text,
         'done': s.done,
       }).toList(),
+      'dayDetails': t.dayDetails.map((key, dd) => MapEntry(key, {
+        'category': dd.category,
+        'time': dd.time,
+        'endTime': dd.endTime,
+        'isAllDay': dd.isAllDay,
+        'description': dd.description,
+        'iconColor': dd.iconColor.toARGB32(),
+        'shoppingList': dd.shoppingList.map((s) => {
+          'id': s.id,
+          'text': s.text,
+          'done': s.done,
+        }).toList(),
+      })),
     };
   }
 
@@ -71,7 +84,34 @@ class StorageService {
       date: m['date'] as String,
       done: m['done'] as bool? ?? false,
       shoppingList: shopList,
+      dayDetails: _parseDayDetails(m['dayDetails']),
     );
+  }
+
+  static Map<String, DayDetail> _parseDayDetails(dynamic raw) {
+    if (raw == null) return {};
+    final map = Map<String, dynamic>.from(raw);
+    return map.map((key, value) {
+      final dd = Map<String, dynamic>.from(value);
+      final shopRaw = dd['shoppingList'] as List? ?? [];
+      final shopList = shopRaw.map((s) {
+        final sm = Map<String, dynamic>.from(s);
+        return ShoppingItem(
+          id: sm['id'] as int,
+          text: sm['text'] as String,
+          done: sm['done'] as bool? ?? false,
+        );
+      }).toList();
+      return MapEntry(key, DayDetail(
+        category: dd['category'] as String? ?? '',
+        time: dd['time'] as String? ?? '09:00',
+        endTime: dd['endTime'] as String?,
+        isAllDay: dd['isAllDay'] as bool? ?? false,
+        description: dd['description'] as String? ?? '',
+        iconColor: dd['iconColor'] != null ? Color(dd['iconColor'] as int) : const Color(0xFF5D99C6),
+        shoppingList: shopList,
+      ));
+    });
   }
 
   // ===== MEMOS =====

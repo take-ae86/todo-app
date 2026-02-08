@@ -37,6 +37,11 @@ class _AddEditModalState extends State<AddEditModal> {
   late bool _isAllDay;
   late DateTime _startDate;
   late DateTime? _endDate;
+  late Map<String, DayDetail> _dayDetails;
+
+  bool get _isMultiDay =>
+      _endDate != null &&
+      TodoItem.dateToStr(_endDate!) != TodoItem.dateToStr(_startDate);
 
   @override
   void initState() {
@@ -63,6 +68,9 @@ class _AddEditModalState extends State<AddEditModal> {
     _shoppingListDraft = e?.shoppingList != null
         ? List.from(e!.shoppingList)
         : [];
+    _dayDetails = e?.dayDetails != null
+        ? Map.from(e!.dayDetails)
+        : {};
 
     _startDate = e != null
         ? TodoItem.strToDate(e.date)
@@ -85,7 +93,10 @@ class _AddEditModalState extends State<AddEditModal> {
 
     final String saveTime;
     final String? saveEndTime;
-    if (_isAllDay) {
+    if (_isMultiDay) {
+      saveTime = _time;
+      saveEndTime = _endTime;
+    } else if (_isAllDay) {
       saveTime = '00:00';
       saveEndTime = '01:00';
     } else {
@@ -96,18 +107,17 @@ class _AddEditModalState extends State<AddEditModal> {
     final newData = TodoItem(
       id: widget.editingTodo?.id ?? DateTime.now().millisecondsSinceEpoch,
       title: _titleController.text.trim(),
-      category: _category,
-      description: _descController.text,
+      category: _isMultiDay ? '' : _category,
+      description: _isMultiDay ? '' : _descController.text,
       time: saveTime,
       endTime: saveEndTime,
-      endDate: _endDate != null && TodoItem.dateToStr(_endDate!) != TodoItem.dateToStr(_startDate)
-          ? TodoItem.dateToStr(_endDate!)
-          : null,
-      isAllDay: _isAllDay,
-      iconColor: _iconColor,
+      endDate: _isMultiDay ? TodoItem.dateToStr(_endDate!) : null,
+      isAllDay: _isMultiDay ? false : _isAllDay,
+      iconColor: _isMultiDay ? kThemeColor : _iconColor,
       date: TodoItem.dateToStr(_startDate),
       done: false,
-      shoppingList: _shoppingListDraft,
+      shoppingList: _isMultiDay ? const [] : _shoppingListDraft,
+      dayDetails: _isMultiDay ? _dayDetails : const {},
     );
 
     if (widget.editingTodo != null) {
@@ -177,6 +187,36 @@ class _AddEditModalState extends State<AddEditModal> {
     }
   }
 
+  void _openDayDetail(String dateStr) {
+    final existing = _dayDetails[dateStr] ?? DayDetail(iconColor: kGoogleColors[11]);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _DayDetailModal(
+          dateStr: dateStr,
+          parentTitle: _titleController.text.trim(),
+          detail: existing,
+          onSave: (dd) {
+            setState(() {
+              _dayDetails = Map.from(_dayDetails);
+              _dayDetails[dateStr] = dd;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  List<String> get _multiDayDates {
+    if (!_isMultiDay) return [];
+    final start = _startDate;
+    final end = _endDate!;
+    final List<String> dates = [];
+    for (var d = start; !d.isAfter(end); d = d.add(const Duration(days: 1))) {
+      dates.add(TodoItem.dateToStr(d));
+    }
+    return dates;
+  }
+
   @override
   Widget build(BuildContext context) {
     final prov = context.watch<AppProvider>();
@@ -203,7 +243,8 @@ class _AddEditModalState extends State<AddEditModal> {
                 ),
                 Row(
                   children: [
-                    GestureDetector(
+                    if (!_isMultiDay) ...[
+                      GestureDetector(
                         onTap: _openShoppingList,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -221,7 +262,8 @@ class _AddEditModalState extends State<AddEditModal> {
                           ),
                         ),
                       ),
-                    const SizedBox(width: 8),
+                      const SizedBox(width: 8),
+                    ],
                     if (widget.editingTodo != null) ...[
                       GestureDetector(
                         onTap: _remove,
@@ -274,150 +316,189 @@ class _AddEditModalState extends State<AddEditModal> {
                     ),
                     Divider(color: Colors.grey[200]),
                     const SizedBox(height: 16),
-                    // Category selection
-                    Text('カテゴリ', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                    const SizedBox(height: 8),
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 5,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      childAspectRatio: 0.85,
-                      children: kCategoryNames.map((name) {
-                        final isSelected = _category == name;
-                        return GestureDetector(
-                          onTap: () => setState(() {
-                            if (_category != name) {
-                              _shoppingListDraft = [];
-                            }
-                            _category = name;
-                          }),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: isSelected ? kThemeColor : Colors.transparent),
-                              color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
+
+                    // === Single-day: show category ===
+                    if (!_isMultiDay) ...[
+                      Text('カテゴリ', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                      const SizedBox(height: 8),
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 5,
+                        mainAxisSpacing: 8,
+                        crossAxisSpacing: 8,
+                        childAspectRatio: 0.85,
+                        children: kCategoryNames.map((name) {
+                          final isSelected = _category == name;
+                          return GestureDetector(
+                            onTap: () => setState(() {
+                              if (_category != name) {
+                                _shoppingListDraft = [];
+                              }
+                              _category = name;
+                            }),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: isSelected ? kThemeColor : Colors.transparent),
+                                color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  buildCategoryIcon(name, size: 16, color: isSelected ? kThemeColor : Colors.grey[400]!),
+                                  const SizedBox(height: 4),
+                                  Text(name, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isSelected ? kThemeColor : Colors.grey[400])),
+                                ],
+                              ),
                             ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                buildCategoryIcon(name, size: 16, color: isSelected ? kThemeColor : Colors.grey[400]!),
-                                const SizedBox(height: 4),
-                                Text(name, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isSelected ? kThemeColor : Colors.grey[400])),
-                              ],
-                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // All-day toggle (single-day only)
+                    if (!_isMultiDay) ...[
+                      Row(
+                        children: [
+                          Icon(Icons.wb_sunny, color: Colors.grey[400]),
+                          const SizedBox(width: 12),
+                          Text('終日', style: TextStyle(color: darkMode ? Colors.white : Colors.grey[800])),
+                          const Spacer(),
+                          Switch(
+                            value: _isAllDay,
+                            onChanged: (v) => setState(() => _isAllDay = v),
+                            activeTrackColor: kThemeColor,
                           ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 24),
-                    // All-day toggle
-                    Row(
-                      children: [
-                        Icon(Icons.wb_sunny, color: Colors.grey[400]),
-                        const SizedBox(width: 12),
-                        Text('終日', style: TextStyle(color: darkMode ? Colors.white : Colors.grey[800])),
-                        const Spacer(),
-                        Switch(
-                          value: _isAllDay,
-                          onChanged: (v) => setState(() => _isAllDay = v),
-                          activeTrackColor: kThemeColor,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    // Date pickers
-                    _DateRow(
-                      label: '開始日',
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+
+                    // Start date + time
+                    _DateTimeRow(
+                      label: '開始',
                       date: _startDate,
-                      onTap: _pickStartDate,
+                      time: (_isMultiDay || _isAllDay) ? null : _time,
+                      onTapDate: _pickStartDate,
+                      onTimeChanged: (_isMultiDay || _isAllDay) ? null : (v) => setState(() => _time = v),
                       darkMode: darkMode,
                     ),
                     const SizedBox(height: 8),
-                    _DateRow(
-                      label: '終了日',
+                    // End date + time
+                    _DateTimeRow(
+                      label: '終了',
                       date: _endDate,
-                      onTap: _pickEndDate,
+                      time: (_isMultiDay || _isAllDay) ? null : (_endTime ?? _addOneHour(_time)),
+                      onTapDate: _pickEndDate,
+                      onTimeChanged: (_isMultiDay || _isAllDay) ? null : (v) => setState(() => _endTime = v),
                       darkMode: darkMode,
                     ),
                     const SizedBox(height: 16),
-                    // Time picker (hidden when all-day)
-                    if (!_isAllDay) ...[
+
+                    // === Multi-day: date buttons ===
+                    if (_isMultiDay) ...[
+                      Divider(color: Colors.grey[200]),
+                      const SizedBox(height: 12),
+                      Text('日別スケジュール', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _multiDayDates.map((dateStr) {
+                          final d = TodoItem.strToDate(dateStr);
+                          final hasDetail = _dayDetails.containsKey(dateStr);
+                          return GestureDetector(
+                            onTap: () => _openDayDetail(dateStr),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: hasDetail
+                                    ? kThemeColor.withValues(alpha: 0.1)
+                                    : (darkMode ? const Color(0xFF253044) : Colors.grey[100]),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: hasDetail ? kThemeColor : Colors.grey[300]!,
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  Text(
+                                    '${d.month}/${d.day}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                      color: hasDetail ? kThemeColor : (darkMode ? Colors.white70 : Colors.grey[700]),
+                                    ),
+                                  ),
+                                  if (hasDetail) ...[
+                                    const SizedBox(height: 2),
+                                    Icon(Icons.check_circle, size: 12, color: kThemeColor),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 80),
+                    ],
+
+                    // === Single-day: description + color ===
+                    if (!_isMultiDay) ...[
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.access_time, color: Colors.grey[400]),
-                          const SizedBox(width: 12),
-                          TimePickerWidget(
-                            value: _time,
-                            onChanged: (v) => setState(() => _time = v),
-                            darkMode: darkMode,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Icon(Icons.description, color: Colors.grey[400]),
                           ),
-                          const SizedBox(width: 8),
-                          Text('〜', style: TextStyle(color: darkMode ? Colors.white54 : Colors.grey[600])),
-                          const SizedBox(width: 8),
-                          TimePickerWidget(
-                            value: _endTime ?? _addOneHour(_time),
-                            onChanged: (v) => setState(() => _endTime = v),
-                            darkMode: darkMode,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: TextField(
+                              controller: _descController,
+                              maxLines: 4,
+                              decoration: InputDecoration(
+                                hintText: '詳細を追加',
+                                border: InputBorder.none,
+                                hintStyle: TextStyle(color: darkMode ? Colors.white38 : Colors.grey),
+                              ),
+                              style: TextStyle(fontSize: 14, color: darkMode ? Colors.white : Colors.grey[800]),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 16),
+                      Divider(color: Colors.grey[200]),
+                      const SizedBox(height: 12),
+                      Text('アイコン色を選択', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                      const SizedBox(height: 12),
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 6,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        children: kGoogleColors.map((c) {
+                          final isSelected = _iconColor.toARGB32() == c.toARGB32();
+                          return GestureDetector(
+                            onTap: () => setState(() => _iconColor = c),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: c,
+                                shape: BoxShape.circle,
+                                border: isSelected ? Border.all(color: Colors.grey[400]!, width: 2) : null,
+                                boxShadow: isSelected
+                                    ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)]
+                                    : null,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 80),
                     ],
-                    // Description
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Icon(Icons.description, color: Colors.grey[400]),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _descController,
-                            maxLines: 4,
-                            decoration: InputDecoration(
-                              hintText: '詳細を追加',
-                              border: InputBorder.none,
-                              hintStyle: TextStyle(color: darkMode ? Colors.white38 : Colors.grey),
-                            ),
-                            style: TextStyle(fontSize: 14, color: darkMode ? Colors.white : Colors.grey[800]),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Divider(color: Colors.grey[200]),
-                    const SizedBox(height: 12),
-                    // Color picker
-                    Text('アイコン色を選択', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                    const SizedBox(height: 12),
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 6,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      children: kGoogleColors.map((c) {
-                        final isSelected = _iconColor.toARGB32() == c.toARGB32();
-                        return GestureDetector(
-                          onTap: () => setState(() => _iconColor = c),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: c,
-                              shape: BoxShape.circle,
-                              border: isSelected ? Border.all(color: Colors.grey[400]!, width: 2) : null,
-                              boxShadow: isSelected
-                                  ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)]
-                                  : null,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 80),
                   ],
                 ),
               ),
@@ -435,30 +516,316 @@ class _AddEditModalState extends State<AddEditModal> {
   }
 }
 
-class _DateRow extends StatelessWidget {
+// === Day Detail Modal (child) ===
+class _DayDetailModal extends StatefulWidget {
+  final String dateStr;
+  final String parentTitle;
+  final DayDetail detail;
+  final ValueChanged<DayDetail> onSave;
+
+  const _DayDetailModal({
+    required this.dateStr,
+    required this.parentTitle,
+    required this.detail,
+    required this.onSave,
+  });
+
+  @override
+  State<_DayDetailModal> createState() => _DayDetailModalState();
+}
+
+class _DayDetailModalState extends State<_DayDetailModal> {
+  late String _category;
+  late String _time;
+  late String? _endTime;
+  late bool _isAllDay;
+  late TextEditingController _descController;
+  late Color _iconColor;
+  late List<ShoppingItem> _shoppingListDraft;
+
+  @override
+  void initState() {
+    super.initState();
+    final dd = widget.detail;
+    _category = dd.category.isEmpty ? '買い物' : dd.category;
+    _time = dd.time;
+    _endTime = dd.endTime;
+    _isAllDay = dd.isAllDay;
+    _descController = TextEditingController(text: dd.description);
+    _iconColor = dd.iconColor;
+    _shoppingListDraft = List.from(dd.shoppingList);
+  }
+
+  @override
+  void dispose() {
+    _descController.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final String saveTime;
+    final String? saveEndTime;
+    if (_isAllDay) {
+      saveTime = '00:00';
+      saveEndTime = '01:00';
+    } else {
+      saveTime = _time;
+      saveEndTime = _endTime;
+    }
+
+    widget.onSave(DayDetail(
+      category: _category,
+      time: saveTime,
+      endTime: saveEndTime,
+      isAllDay: _isAllDay,
+      description: _descController.text,
+      iconColor: _iconColor,
+      shoppingList: _shoppingListDraft,
+    ));
+    Navigator.of(context).pop();
+  }
+
+  void _openShoppingList() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ShoppingListModal(
+          title: kCategoryListName[_category] ?? 'チェックリスト',
+          initialItems: _shoppingListDraft,
+          onSave: (items) {
+            setState(() {
+              _shoppingListDraft = items;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  String _addOneHour(String time) {
+    final parts = time.split(':');
+    final h = (int.parse(parts[0]) + 1).clamp(0, 23);
+    return '${h.toString().padLeft(2, '0')}:${parts[1]}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch<AppProvider>();
+    final darkMode = prov.darkMode;
+    final d = TodoItem.strToDate(widget.dateStr);
+
+    return Scaffold(
+      backgroundColor: darkMode ? const Color(0xFF111827) : Colors.white,
+      appBar: AppBar(
+        backgroundColor: darkMode ? const Color(0xFF111827) : Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: darkMode ? Colors.white : Colors.black87),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          '${widget.parentTitle} - ${d.month}/${d.day}',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w500,
+            color: darkMode ? Colors.white : Colors.black87,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          GestureDetector(
+            onTap: _openShoppingList,
+            child: Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(Icons.checklist, size: 18, color: kThemeColor),
+            ),
+          ),
+          GestureDetector(
+            onTap: _save,
+            child: Container(
+              margin: const EdgeInsets.only(right: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: kThemeColor,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text('保存', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14)),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Category
+            Text('カテゴリ', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+            const SizedBox(height: 8),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 5,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 0.85,
+              children: kCategoryNames.map((name) {
+                final isSelected = _category == name;
+                return GestureDetector(
+                  onTap: () => setState(() {
+                    if (_category != name) _shoppingListDraft = [];
+                    _category = name;
+                  }),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isSelected ? kThemeColor : Colors.transparent),
+                      color: isSelected ? const Color(0xFFEFF6FF) : Colors.transparent,
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        buildCategoryIcon(name, size: 16, color: isSelected ? kThemeColor : Colors.grey[400]!),
+                        const SizedBox(height: 4),
+                        Text(name, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isSelected ? kThemeColor : Colors.grey[400])),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 24),
+            // All-day toggle
+            Row(
+              children: [
+                Icon(Icons.wb_sunny, color: Colors.grey[400]),
+                const SizedBox(width: 12),
+                Text('終日', style: TextStyle(color: darkMode ? Colors.white : Colors.grey[800])),
+                const Spacer(),
+                Switch(
+                  value: _isAllDay,
+                  onChanged: (v) => setState(() => _isAllDay = v),
+                  activeTrackColor: kThemeColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // Time picker
+            if (!_isAllDay) ...[
+              Row(
+                children: [
+                  Icon(Icons.access_time, color: Colors.grey[400]),
+                  const SizedBox(width: 12),
+                  TimePickerWidget(
+                    value: _time,
+                    onChanged: (v) => setState(() => _time = v),
+                    darkMode: darkMode,
+                  ),
+                  const SizedBox(width: 8),
+                  Text('〜', style: TextStyle(color: darkMode ? Colors.white54 : Colors.grey[600])),
+                  const SizedBox(width: 8),
+                  TimePickerWidget(
+                    value: _endTime ?? _addOneHour(_time),
+                    onChanged: (v) => setState(() => _endTime = v),
+                    darkMode: darkMode,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+            ],
+            // Description
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Icon(Icons.description, color: Colors.grey[400]),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _descController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: '詳細を追加',
+                      border: InputBorder.none,
+                      hintStyle: TextStyle(color: darkMode ? Colors.white38 : Colors.grey),
+                    ),
+                    style: TextStyle(fontSize: 14, color: darkMode ? Colors.white : Colors.grey[800]),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Divider(color: Colors.grey[200]),
+            const SizedBox(height: 12),
+            // Color picker
+            Text('アイコン色を選択', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+            const SizedBox(height: 12),
+            GridView.count(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisCount: 6,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              children: kGoogleColors.map((c) {
+                final isSelected = _iconColor.toARGB32() == c.toARGB32();
+                return GestureDetector(
+                  onTap: () => setState(() => _iconColor = c),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: c,
+                      shape: BoxShape.circle,
+                      border: isSelected ? Border.all(color: Colors.grey[400]!, width: 2) : null,
+                      boxShadow: isSelected
+                          ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)]
+                          : null,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 80),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// === DateTimeRow widget ===
+class _DateTimeRow extends StatelessWidget {
   final String label;
   final DateTime? date;
-  final VoidCallback onTap;
+  final String? time;
+  final VoidCallback onTapDate;
+  final ValueChanged<String>? onTimeChanged;
   final bool darkMode;
 
-  const _DateRow({
+  const _DateTimeRow({
     required this.label,
     required this.date,
-    required this.onTap,
+    required this.onTapDate,
+    this.time,
+    this.onTimeChanged,
     required this.darkMode,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(Icons.calendar_today, size: 18, color: Colors.grey[400]),
-          const SizedBox(width: 12),
-          Text(label, style: TextStyle(fontSize: 13, color: darkMode ? Colors.white54 : Colors.grey[600])),
-          const SizedBox(width: 12),
-          Text(
+    return Row(
+      children: [
+        Icon(Icons.calendar_today, size: 18, color: Colors.grey[400]),
+        const SizedBox(width: 12),
+        Text(label, style: TextStyle(fontSize: 13, color: darkMode ? Colors.white54 : Colors.grey[600])),
+        const SizedBox(width: 12),
+        GestureDetector(
+          onTap: onTapDate,
+          child: Text(
             date != null
                 ? '${date!.year}/${date!.month}/${date!.day}'
                 : '',
@@ -469,8 +836,16 @@ class _DateRow extends StatelessWidget {
                   : Colors.grey[400],
             ),
           ),
+        ),
+        if (time != null && onTimeChanged != null) ...[
+          const SizedBox(width: 12),
+          TimePickerWidget(
+            value: time!,
+            onChanged: onTimeChanged!,
+            darkMode: darkMode,
+          ),
         ],
-      ),
+      ],
     );
   }
 }

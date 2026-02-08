@@ -16,6 +16,61 @@ class ShoppingItem {
   }
 }
 
+/// Per-day detail for multi-day TODOs
+class DayDetail {
+  final String category;
+  final String time;
+  final String? endTime;
+  final bool isAllDay;
+  final String description;
+  final List<ShoppingItem> shoppingList;
+  final Color iconColor;
+
+  DayDetail({
+    this.category = '',
+    this.time = '09:00',
+    this.endTime,
+    this.isAllDay = false,
+    this.description = '',
+    this.shoppingList = const [],
+    this.iconColor = const Color(0xFF5D99C6),
+  });
+
+  DayDetail copyWith({
+    String? category,
+    String? time,
+    String? endTime,
+    bool? isAllDay,
+    String? description,
+    List<ShoppingItem>? shoppingList,
+    Color? iconColor,
+    bool clearEndTime = false,
+  }) {
+    return DayDetail(
+      category: category ?? this.category,
+      time: time ?? this.time,
+      endTime: clearEndTime ? null : (endTime ?? this.endTime),
+      isAllDay: isAllDay ?? this.isAllDay,
+      description: description ?? this.description,
+      shoppingList: shoppingList ?? this.shoppingList,
+      iconColor: iconColor ?? this.iconColor,
+    );
+  }
+
+  int get timeMinutes {
+    final parts = time.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
+  int get endTimeMinutes {
+    if (endTime != null) {
+      final parts = endTime!.split(':');
+      return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+    }
+    return timeMinutes + 60;
+  }
+}
+
 class TodoItem {
   final int id;
   final String title;
@@ -29,6 +84,7 @@ class TodoItem {
   final String date; // dateStr like "2026-01-26"
   final bool done;
   final List<ShoppingItem> shoppingList;
+  final Map<String, DayDetail> dayDetails; // key = dateStr e.g. "2026-02-07"
 
   TodoItem({
     required this.id,
@@ -43,6 +99,7 @@ class TodoItem {
     required this.date,
     this.done = false,
     this.shoppingList = const [],
+    this.dayDetails = const {},
   });
 
   TodoItem copyWith({
@@ -58,6 +115,7 @@ class TodoItem {
     String? date,
     bool? done,
     List<ShoppingItem>? shoppingList,
+    Map<String, DayDetail>? dayDetails,
     bool clearEndTime = false,
     bool clearEndDate = false,
   }) {
@@ -74,6 +132,7 @@ class TodoItem {
       date: date ?? this.date,
       done: done ?? this.done,
       shoppingList: shoppingList ?? this.shoppingList,
+      dayDetails: dayDetails ?? this.dayDetails,
     );
   }
 
