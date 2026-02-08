@@ -94,7 +94,7 @@ class DetailModal extends StatelessWidget {
       final url = match.group(0)!;
       spans.add(TextSpan(
         text: url,
-        style: baseStyle.copyWith(color: Colors.blue, decoration: TextDecoration.underline),
+        style: baseStyle.copyWith(color: Colors.blue),
         recognizer: TapGestureRecognizer()
           ..onTap = () async {
             final uri = Uri.parse(url);

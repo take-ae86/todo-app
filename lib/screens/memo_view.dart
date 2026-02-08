@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/app_provider.dart';
 import '../models/todo_model.dart';
 import '../utils/constants.dart';
@@ -127,14 +129,9 @@ class _MemoViewState extends State<MemoView> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
+                      child: _buildMemoText(
                         memo.text,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: prov.darkMode
-                              ? Colors.white
-                              : Colors.grey[800],
-                        ),
+                        prov.darkMode,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -177,6 +174,56 @@ class _MemoViewState extends State<MemoView> {
           ),
         ),
       ],
+    );
+  }
+  Widget _buildMemoText(String text, bool darkMode) {
+    final urlRegex = RegExp(r'https?://[^\s]+');
+    final baseColor = darkMode ? Colors.white : Colors.grey[800]!;
+
+    if (!urlRegex.hasMatch(text)) {
+      return Text(
+        text,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: baseColor),
+      );
+    }
+
+    final matches = urlRegex.allMatches(text).toList();
+    final spans = <TextSpan>[];
+    int lastEnd = 0;
+
+    for (final match in matches) {
+      if (match.start > lastEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastEnd, match.start),
+          style: TextStyle(color: baseColor),
+        ));
+      }
+      final url = match.group(0)!;
+      spans.add(TextSpan(
+        text: url,
+        style: const TextStyle(color: Colors.blue),
+        recognizer: TapGestureRecognizer()
+          ..onTap = () async {
+            final uri = Uri.parse(url);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+      ));
+      lastEnd = match.end;
+    }
+
+    if (lastEnd < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastEnd),
+        style: TextStyle(color: baseColor),
+      ));
+    }
+
+    return RichText(
+      text: TextSpan(children: spans),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

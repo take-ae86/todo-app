@@ -118,14 +118,18 @@ class _TimelineDayViewState extends State<TimelineDayView> {
     setState(() => _creatingHandle = handle);
   }
 
-  void _onHandleDragMove(double deltaY) {
+  double _handleDragStartY = 0;
+  int _handleDragStartMin = 0;
+
+  void _onHandleDragMove(double globalY) {
     if (_creatingHandle == null) return;
+    final delta = globalY - _handleDragStartY;
     setState(() {
       if (_creatingHandle == 'top') {
-        final newStart = _snap15(_createStartMin + deltaY.round());
+        final newStart = _snap15(_handleDragStartMin + delta.round());
         if (newStart <= _createEndMin - 15) _createStartMin = newStart;
       } else {
-        final newEnd = _snap15(_createEndMin + deltaY.round());
+        final newEnd = _snap15(_handleDragStartMin + delta.round());
         if (newEnd >= _createStartMin + 15) _createEndMin = newEnd;
       }
     });
@@ -215,7 +219,7 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                 if (_draggingId != null) {
                   _onDragMove(e.position.dy);
                 } else if (_creatingHandle != null) {
-                  _onHandleDragMove(e.delta.dy);
+                  _onHandleDragMove(e.position.dy);
                 }
               },
               onPointerUp: (_) {
@@ -297,15 +301,26 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                     right: 0,
                                     child: Center(
                                       child: GestureDetector(
-                                        onVerticalDragStart: (_) => _startHandleDrag('top'),
-                                        onVerticalDragUpdate: (d) => _onHandleDragMove(d.delta.dy),
+                                        onVerticalDragStart: (d) {
+                                          _handleDragStartY = d.globalPosition.dy;
+                                          _handleDragStartMin = _createStartMin;
+                                          _startHandleDrag('top');
+                                        },
+                                        onVerticalDragUpdate: (d) => _onHandleDragMove(d.globalPosition.dy),
                                         onVerticalDragEnd: (_) => _endHandleDrag(),
                                         child: Container(
-                                          width: 24,
-                                          height: 12,
-                                          decoration: BoxDecoration(
-                                            color: kThemeColor,
-                                            borderRadius: BorderRadius.circular(6),
+                                          width: 48,
+                                          height: 28,
+                                          color: Colors.transparent,
+                                          child: Center(
+                                            child: Container(
+                                              width: 30,
+                                              height: 10,
+                                              decoration: BoxDecoration(
+                                                color: kThemeColor,
+                                                borderRadius: BorderRadius.circular(5),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -318,15 +333,26 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                     right: 0,
                                     child: Center(
                                       child: GestureDetector(
-                                        onVerticalDragStart: (_) => _startHandleDrag('bottom'),
-                                        onVerticalDragUpdate: (d) => _onHandleDragMove(d.delta.dy),
+                                        onVerticalDragStart: (d) {
+                                          _handleDragStartY = d.globalPosition.dy;
+                                          _handleDragStartMin = _createEndMin;
+                                          _startHandleDrag('bottom');
+                                        },
+                                        onVerticalDragUpdate: (d) => _onHandleDragMove(d.globalPosition.dy),
                                         onVerticalDragEnd: (_) => _endHandleDrag(),
                                         child: Container(
-                                          width: 24,
-                                          height: 12,
-                                          decoration: BoxDecoration(
-                                            color: kThemeColor,
-                                            borderRadius: BorderRadius.circular(6),
+                                          width: 48,
+                                          height: 28,
+                                          color: Colors.transparent,
+                                          child: Center(
+                                            child: Container(
+                                              width: 30,
+                                              height: 10,
+                                              decoration: BoxDecoration(
+                                                color: kThemeColor,
+                                                borderRadius: BorderRadius.circular(5),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),

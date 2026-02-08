@@ -67,7 +67,9 @@ class _AddEditModalState extends State<AddEditModal> {
     _startDate = e != null
         ? TodoItem.strToDate(e.date)
         : (widget.targetDate ?? DateTime.now());
-    _endDate = e?.endDate != null ? TodoItem.strToDate(e!.endDate!) : null;
+    _endDate = e?.endDate != null
+        ? TodoItem.strToDate(e!.endDate!)
+        : _startDate;
   }
 
   @override
@@ -334,7 +336,6 @@ class _AddEditModalState extends State<AddEditModal> {
                       date: _endDate,
                       onTap: _pickEndDate,
                       darkMode: darkMode,
-                      placeholder: '指定なし（1日）',
                     ),
                     const SizedBox(height: 16),
                     // Time picker (hidden when all-day)
@@ -435,14 +436,12 @@ class _DateRow extends StatelessWidget {
   final DateTime? date;
   final VoidCallback onTap;
   final bool darkMode;
-  final String? placeholder;
 
   const _DateRow({
     required this.label,
     required this.date,
     required this.onTap,
     required this.darkMode,
-    this.placeholder,
   });
 
   @override
@@ -458,7 +457,7 @@ class _DateRow extends StatelessWidget {
           Text(
             date != null
                 ? '${date!.year}/${date!.month}/${date!.day}'
-                : (placeholder ?? ''),
+                : '',
             style: TextStyle(
               fontSize: 14,
               color: date != null
