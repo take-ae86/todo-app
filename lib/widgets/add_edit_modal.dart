@@ -113,7 +113,7 @@ class _AddEditModalState extends State<AddEditModal> {
       endTime: saveEndTime,
       endDate: _isMultiDay ? TodoItem.dateToStr(_endDate!) : null,
       isAllDay: _isMultiDay ? false : _isAllDay,
-      iconColor: _isMultiDay ? kThemeColor : _iconColor,
+      iconColor: _iconColor,
       date: TodoItem.dateToStr(_startDate),
       done: false,
       shoppingList: _isMultiDay ? const [] : _shoppingListDraft,
@@ -188,12 +188,13 @@ class _AddEditModalState extends State<AddEditModal> {
   }
 
   void _openDayDetail(String dateStr) {
-    final existing = _dayDetails[dateStr] ?? DayDetail(iconColor: kGoogleColors[11]);
+    final existing = _dayDetails[dateStr] ?? DayDetail(iconColor: _iconColor);
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _DayDetailModal(
+        builder: (_) => _DayTimelineScreen(
           dateStr: dateStr,
           parentTitle: _titleController.text.trim(),
+          parentColor: _iconColor,
           detail: existing,
           onSave: (dd) {
             setState(() {
@@ -397,6 +398,36 @@ class _AddEditModalState extends State<AddEditModal> {
                     ),
                     const SizedBox(height: 16),
 
+                    // === Color picker (both single-day and multi-day) ===
+                    Divider(color: Colors.grey[200]),
+                    const SizedBox(height: 12),
+                    Text('アイコン色を選択', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 6,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      children: kGoogleColors.map((c) {
+                        final isSelected = _iconColor.toARGB32() == c.toARGB32();
+                        return GestureDetector(
+                          onTap: () => setState(() => _iconColor = c),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: c,
+                              shape: BoxShape.circle,
+                              border: isSelected ? Border.all(color: Colors.grey[400]!, width: 2) : null,
+                              boxShadow: isSelected
+                                  ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)]
+                                  : null,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
                     // === Multi-day: date buttons ===
                     if (_isMultiDay) ...[
                       Divider(color: Colors.grey[200]),
@@ -442,10 +473,10 @@ class _AddEditModalState extends State<AddEditModal> {
                           );
                         }).toList(),
                       ),
-                      const SizedBox(height: 80),
+                      const SizedBox(height: 16),
                     ],
 
-                    // === Single-day: description + color ===
+                    // === Single-day: description ===
                     if (!_isMultiDay) ...[
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,35 +501,9 @@ class _AddEditModalState extends State<AddEditModal> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      Divider(color: Colors.grey[200]),
-                      const SizedBox(height: 12),
-                      Text('アイコン色を選択', style: TextStyle(fontSize: 12, color: Colors.grey[400])),
-                      const SizedBox(height: 12),
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 6,
-                        mainAxisSpacing: 12,
-                        crossAxisSpacing: 12,
-                        children: kGoogleColors.map((c) {
-                          final isSelected = _iconColor.toARGB32() == c.toARGB32();
-                          return GestureDetector(
-                            onTap: () => setState(() => _iconColor = c),
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: c,
-                                shape: BoxShape.circle,
-                                border: isSelected ? Border.all(color: Colors.grey[400]!, width: 2) : null,
-                                boxShadow: isSelected
-                                    ? [BoxShadow(color: c.withValues(alpha: 0.4), blurRadius: 4, spreadRadius: 1)]
-                                    : null,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 80),
                     ],
+
+                    const SizedBox(height: 80),
                   ],
                 ),
               ),
@@ -513,6 +518,245 @@ class _AddEditModalState extends State<AddEditModal> {
     final parts = time.split(':');
     final h = (int.parse(parts[0]) + 1).clamp(0, 23);
     return '${h.toString().padLeft(2, '0')}:${parts[1]}';
+  }
+}
+
+// === Day Timeline Screen (child timeline) ===
+class _DayTimelineScreen extends StatefulWidget {
+  final String dateStr;
+  final String parentTitle;
+  final Color parentColor;
+  final DayDetail detail;
+  final ValueChanged<DayDetail> onSave;
+
+  const _DayTimelineScreen({
+    required this.dateStr,
+    required this.parentTitle,
+    required this.parentColor,
+    required this.detail,
+    required this.onSave,
+  });
+
+  @override
+  State<_DayTimelineScreen> createState() => _DayTimelineScreenState();
+}
+
+class _DayTimelineScreenState extends State<_DayTimelineScreen> {
+  final ScrollController _scrollController = ScrollController();
+  late DayDetail _currentDetail;
+  static const double _hourHeight = 60.0;
+  static const double _totalHeight = 24 * _hourHeight;
+  static const double _leftMargin = 50.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentDetail = widget.detail;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        // Scroll to the bar position or 8:00
+        final targetMin = _currentDetail.isAllDay ? 0 : _currentDetail.timeMinutes;
+        final scrollTo = (targetMin > 60 ? (targetMin - 60) : 0) * _hourHeight / 60;
+        _scrollController.jumpTo(scrollTo.clamp(0.0, _totalHeight - 200));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  String _minutesToTime(int mins) {
+    final m = mins.clamp(0, 1439);
+    final h = (m ~/ 60).toString().padLeft(2, '0');
+    final mm = (m % 60).toString().padLeft(2, '0');
+    return '$h:$mm';
+  }
+
+  void _openChildModal() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _DayDetailModal(
+          dateStr: widget.dateStr,
+          parentTitle: widget.parentTitle,
+          detail: _currentDetail,
+          onSave: (dd) {
+            setState(() => _currentDetail = dd);
+            widget.onSave(dd);
+          },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prov = context.watch<AppProvider>();
+    final darkMode = prov.darkMode;
+    final d = TodoItem.strToDate(widget.dateStr);
+    final dow = d.weekday % 7;
+    final weekDayStr = kWeekDays[dow];
+
+    // Compute bar position
+    final int startMin;
+    final int endMin;
+    final String timeText;
+    if (_currentDetail.isAllDay) {
+      startMin = 0;
+      endMin = 60;
+      timeText = '\u7D42\u65E5';
+    } else {
+      startMin = _currentDetail.timeMinutes;
+      endMin = _currentDetail.endTimeMinutes;
+      timeText = '${_currentDetail.time}\u301C${_minutesToTime(endMin)}';
+    }
+    final barHeight = (endMin - startMin).toDouble().clamp(30.0, _totalHeight);
+    final barColor = _currentDetail.category.isNotEmpty
+        ? _currentDetail.iconColor
+        : widget.parentColor;
+
+    return Scaffold(
+      backgroundColor: darkMode ? const Color(0xFF111827) : kBgColor,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Row(
+                      children: [
+                        Icon(Icons.arrow_back, size: 20, color: darkMode ? Colors.white : kDarkTextColor),
+                        const SizedBox(width: 4),
+                        Text('\u623B\u308B', style: TextStyle(fontWeight: FontWeight.w500, color: darkMode ? Colors.white : kDarkTextColor)),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${d.month}\u6708${d.day}\u65E5',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: darkMode ? Colors.white : kDarkTextColor),
+                      ),
+                      Text(
+                        '$weekDayStr\u66DC\u65E5',
+                        style: TextStyle(fontSize: 12, color: darkMode ? Colors.white38 : Colors.black38),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Timeline
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  color: darkMode ? const Color(0xFF1F2937) : Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: darkMode ? Colors.grey[800]! : Colors.grey[200]!),
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: SizedBox(
+                    height: _totalHeight,
+                    child: Stack(
+                      children: [
+                        // Hour lines
+                        ...List.generate(24, (h) {
+                          return Positioned(
+                            top: h * _hourHeight,
+                            left: 0,
+                            right: 0,
+                            height: _hourHeight,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  top: BorderSide(color: darkMode ? Colors.grey[800]! : Colors.grey[100]!),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: _leftMargin,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 4, top: 2),
+                                      child: Text(
+                                        '$h:00',
+                                        textAlign: TextAlign.right,
+                                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(child: Container(color: Colors.transparent)),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                        // The bar
+                        Positioned(
+                          top: startMin.toDouble(),
+                          left: _leftMargin + 6,
+                          right: 8,
+                          height: barHeight,
+                          child: GestureDetector(
+                            onTap: _openChildModal,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: barColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border(left: BorderSide(color: barColor, width: 4)),
+                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2)],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Row(
+                                    children: [
+                                      if (_currentDetail.category.isNotEmpty)
+                                        buildCategoryIcon(_currentDetail.category, size: 12, color: barColor),
+                                      if (_currentDetail.category.isNotEmpty)
+                                        const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          timeText,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: darkMode ? Colors.white70 : Colors.grey[700],
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -622,13 +866,25 @@ class _DayDetailModalState extends State<_DayDetailModal> {
           icon: Icon(Icons.arrow_back, color: darkMode ? Colors.white : Colors.black87),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: Text(
-          '${widget.parentTitle} - ${d.month}/${d.day}',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-            color: darkMode ? Colors.white : Colors.black87,
-          ),
+        title: Column(
+          children: [
+            Text(
+              '${d.year}/${d.month}/${d.day}',
+              style: TextStyle(
+                fontSize: 12,
+                color: darkMode ? Colors.white54 : Colors.grey[600],
+              ),
+            ),
+            Text(
+              widget.parentTitle,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: darkMode ? Colors.white : Colors.black87,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
         ),
         centerTitle: true,
         actions: [
@@ -636,12 +892,19 @@ class _DayDetailModalState extends State<_DayDetailModal> {
             onTap: _openShoppingList,
             child: Container(
               margin: const EdgeInsets.only(right: 4),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: Icon(Icons.checklist, size: 18, color: kThemeColor),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.checklist, size: 18, color: kThemeColor),
+                  const SizedBox(width: 4),
+                  Text(kCategoryListName[_category] ?? 'チェックリスト', style: TextStyle(fontSize: 13, color: kThemeColor, fontWeight: FontWeight.w500)),
+                ],
+              ),
             ),
           ),
           GestureDetector(
