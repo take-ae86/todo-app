@@ -339,7 +339,9 @@ class _CalendarCell extends StatelessWidget {
       textColor = prov.darkMode ? Colors.grey[300]! : Colors.grey[700]!;
     }
 
-    final maxMini = (4 - multiDayBarSlots).clamp(0, 4);
+    // Reduce mini bar count if holiday takes space
+    final holidaySlot = holiday != null ? 1 : 0;
+    final maxMini = (4 - multiDayBarSlots - holidaySlot).clamp(0, 4);
 
     return GestureDetector(
       onTap: () {
