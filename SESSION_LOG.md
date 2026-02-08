@@ -13,18 +13,24 @@
 |---|---|---|
 | STABLE_v1_57009eb | 57009eb | 全機能復旧+祝日バー修正+振動無効化+ミニバー4本 |
 | STABLE_v2_2e797fb | 2e797fb | v1 + 全カテゴリリスト機能+リスト共有バグ修正 |
+| STABLE_v3_87282f1 | 87282f1 | v2 + 複数日親子構造+子タイムライン複数バー+カラー修正 |
+| **RELEASE_v1.0_完成版** | **87282f1** | **完成版リリース - 全機能実装完了** |
 
 バックアップURL:
 - STABLE_v1: https://www.genspark.ai/api/files/s/FgckSzdz
 - STABLE_v2: https://www.genspark.ai/api/files/s/9aJWaoIh
+- STABLE_v3 / RELEASE_v1.0_完成版: https://www.genspark.ai/api/files/s/INkf3JRl
 
-## 現在の状態（STABLE_v2 時点）
-- コミット: 2e797fb
+## 現在の状態（RELEASE_v1.0 完成版）
+- コミット: 87282f1
+- タグ: RELEASE_v1.0_完成版
 - GitHub: https://github.com/take-ae86/todo-app.git
 - 公開URL: https://take-ae86.github.io/todo-app/
+- MD5: 388a616d1d1b
 - ローカル・リモート一致確認済み
+- リリース日: 2025/02/08
 
-## 完了済み機能
+## 完了済み機能（RELEASE_v1.0 完成版）
 1. データモデル拡張（endTime/endDate/isAllDay）
 2. モーダル入力UI（終日切替・開始日・終了日・終了時間）
 3. タイムライン15分刻み + バー高さ連動 + 終日0:00-1:00表示
@@ -41,6 +47,20 @@
 14. 祝日セルでもミニバー4本表示
 15. 全カテゴリにリスト機能追加（買い物リスト/メニューリスト/タスクリスト等）
 16. カテゴリ変更時にリストクリア（共有バグ修正）
+17. 複数日TODO親子構造（親:タイトル+期間+カラー / 子:日別独立データ）
+18. モーダル日付横に時間配置
+19. カレンダー横バー/時間バーにタイトル+期間表示
+20. 日付ボタン→子タイムライン→子モーダル導線実装
+21. 子ヘッダー（日付上段+タイトル下段+リストボタンデフォルトサイズ名表示）
+22. 親モーダルにカラー設定（日別スケジュール上に配置）
+23. 親タイムライン複数日バーにiconColor反映
+24. 子タイムラインにポッチ枠+ドラッグ移動+モーダル導線（本家同等）
+25. DayDetail id追加 / dayDetails→List化（複数バー対応）
+26. 子タイムラインで何個でもバー作成可能
+27. 子バー削除機能
+28. 旧データ（単一DayDetail）後方互換対応
+29. カレンダー横バーのテキスト色を黒/グレーに変更（バー色と分離）
+30. 親タイムライン複数日バーを0:00-1:00固定（子データに影響されない）
 
 ## ブルブル（振動）問題の結論
 - 原因: FlutterのMaterialウィジェット（TextField, ElevatedButton, Switch, DatePicker等）のハプティックフィードバック
@@ -48,9 +68,9 @@
 - 対策: web/index.htmlでnavigator.vibrate無効化 + テーマでenableFeedback:false
 - APK版で振動が出る場合はAndroidManifestからVIBRATE除外が必要
 
-## 次の作業：複数日TODO親子構造（未実装）
+## 次の作業：なし（完成版リリース済み）
 
-### 仕様① モーダルレイアウト変更
+### 仕様メモ（実装完了済み）
 - 現状: 日付と時間が別々に配置
 - 変更後: 日付の横に時間を配置
   - 開始 2026/1/28 12:00
@@ -107,9 +127,9 @@
 
 ## ファイル構成
 - lib/main.dart - アプリエントリポイント + HomeScreen + Header + Footer
-- lib/models/todo_model.dart - TodoItem, ShoppingItem, MemoItem
+- lib/models/todo_model.dart - TodoItem, ShoppingItem, MemoItem, DayDetail（id追加済み）
 - lib/providers/app_provider.dart - 状態管理（todos, memos, darkMode等）
-- lib/services/storage_service.dart - Hive永続化
+- lib/services/storage_service.dart - Hive永続化（dayDetails List対応済み）
 - lib/screens/calendar_month_view.dart - カレンダー月表示
 - lib/screens/timeline_day_view.dart - タイムライン日表示
 - lib/screens/memo_view.dart - メモ帳
