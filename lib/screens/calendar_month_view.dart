@@ -100,19 +100,28 @@ class CalendarMonthView extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Row(
                     children: List.generate(7, (i) {
+                      final weekdayColor = i == 0
+                          ? Colors.red
+                          : i == 6
+                              ? Colors.blue
+                              : (prov.darkMode
+                                  ? Colors.white54
+                                  : Colors.black54);
                       return Expanded(
                         child: Center(
                           child: Text(
                             kWeekDays[i],
                             style: TextStyle(
-                              fontSize: 12,
-                              color: i == 0
-                                  ? Colors.red
-                                  : i == 6
-                                      ? Colors.blue
-                                      : (prov.darkMode
-                                          ? Colors.white54
-                                          : Colors.black54),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: weekdayColor,
+                              shadows: [
+                                Shadow(
+                                  color: weekdayColor.withValues(alpha: 0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -251,20 +260,25 @@ class _CalendarCell extends StatelessWidget {
         prov.setCurrentView(AppView.day);
       },
       child: Container(
-        margin: const EdgeInsets.all(1),
+        margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           color: isToday
               ? (prov.darkMode
                   ? Colors.blue.withValues(alpha: 0.1)
                   : const Color(0xFFEFF6FF))
-              : Colors.transparent,
+              : (prov.darkMode
+                  ? const Color(0xFF253044)
+                  : Colors.white),
           borderRadius: BorderRadius.circular(8),
-          border: Border(
-            top: BorderSide(
-              color: prov.darkMode ? Colors.grey[800]! : Colors.grey[100]!,
-              width: 1,
+          boxShadow: [
+            BoxShadow(
+              color: prov.darkMode
+                  ? Colors.black.withValues(alpha: 0.3)
+                  : Colors.black.withValues(alpha: 0.08),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
             ),
-          ),
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
