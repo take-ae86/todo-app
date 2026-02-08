@@ -228,7 +228,7 @@ class _FooterTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = active
         ? (darkMode ? const Color(0xFF60A5FA) : kThemeColor)
-        : Colors.grey[400]!.withValues(alpha: 0.5);
+        : (darkMode ? Colors.grey[400]! : Colors.grey[500]!);
 
     return GestureDetector(
       onTap: onTap,
