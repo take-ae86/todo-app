@@ -237,7 +237,7 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                         textAlign: TextAlign.right,
                                         style: TextStyle(
                                           fontSize: 10,
-                                          color: Colors.grey[400],
+                                          color: Colors.grey[600],
                                         ),
                                       ),
                                     ),
