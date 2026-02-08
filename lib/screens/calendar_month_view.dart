@@ -314,10 +314,8 @@ class _CalendarCell extends StatelessWidget {
                 runSpacing: 1,
                 children: [
                   ...dayTodos.take(3).map((t) {
-                    final iconData =
-                        kCategoryIcons[t.category] ?? Icons.circle;
-                    return Icon(
-                      iconData,
+                    return buildCategoryIcon(
+                      t.category,
                       size: 10,
                       color: t.iconColor,
                     );

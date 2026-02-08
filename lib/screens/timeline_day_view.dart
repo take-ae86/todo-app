@@ -318,9 +318,8 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
-                                      Icon(
-                                        kCategoryIcons[t.category] ??
-                                            Icons.circle,
+                                      buildCategoryIcon(
+                                        t.category,
                                         size: 10,
                                         color: t.iconColor,
                                       ),

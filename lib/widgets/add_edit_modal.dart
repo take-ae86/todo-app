@@ -271,12 +271,12 @@ class _AddEditModalState extends State<AddEditModal> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  kCategoryIcons[name],
+                                buildCategoryIcon(
+                                  name,
                                   size: 16,
                                   color: isSelected
                                       ? kThemeColor
-                                      : Colors.grey[400],
+                                      : Colors.grey[400]!,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(

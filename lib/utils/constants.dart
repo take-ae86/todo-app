@@ -46,3 +46,37 @@ const Map<String, IconData> kCategoryIcons = {
 };
 
 const List<String> kWeekDays = ['日', '月', '火', '水', '木', '金', '土'];
+
+/// Build a category icon widget. For '休み', renders a calendar icon
+/// with the character '休' overlaid in the center.
+Widget buildCategoryIcon(String category, {required double size, required Color color}) {
+  if (category == '休み') {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Icon(Icons.calendar_today, size: size, color: color),
+          Padding(
+            padding: EdgeInsets.only(top: size * 0.15),
+            child: Text(
+              '休',
+              style: TextStyle(
+                fontSize: size * 0.45,
+                fontWeight: FontWeight.w700,
+                color: color,
+                height: 1.0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  return Icon(
+    kCategoryIcons[category] ?? Icons.circle,
+    size: size,
+    color: color,
+  );
+}
