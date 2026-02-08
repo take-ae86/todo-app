@@ -419,12 +419,10 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                               decoration: BoxDecoration(
-                                color: isMultiDay
-                                    ? kThemeColor.withValues(alpha: 0.08)
-                                    : t.iconColor.withValues(alpha: 0.12),
+                                color: t.iconColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border(left: BorderSide(
-                                  color: isMultiDay ? kThemeColor : t.iconColor,
+                                  color: t.iconColor,
                                   width: 4,
                                 )),
                                 boxShadow: isDragging

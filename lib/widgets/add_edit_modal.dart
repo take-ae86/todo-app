@@ -522,6 +522,7 @@ class _AddEditModalState extends State<AddEditModal> {
 }
 
 // === Day Timeline Screen (child timeline) ===
+// Full timeline with potchi frame, drag-move, modal creation - same as main TimelineDayView
 class _DayTimelineScreen extends StatefulWidget {
   final String dateStr;
   final String parentTitle;
@@ -544,6 +545,23 @@ class _DayTimelineScreen extends StatefulWidget {
 class _DayTimelineScreenState extends State<_DayTimelineScreen> {
   final ScrollController _scrollController = ScrollController();
   late DayDetail _currentDetail;
+  bool _hasData = false; // whether child has saved data (show bar)
+
+  // Drag state for existing bar
+  bool _isDragging = false;
+  double _dragStartY = 0;
+  int _dragStartMin = 0;
+  bool _dragMoved = false;
+  bool _suppressClick = false;
+
+  // Creation frame state (potchi)
+  bool _isCreating = false;
+  int _createStartMin = 0;
+  int _createEndMin = 60;
+  String? _creatingHandle; // 'top' or 'bottom'
+  double _handleDragStartY = 0;
+  int _handleDragStartMin = 0;
+
   static const double _hourHeight = 60.0;
   static const double _totalHeight = 24 * _hourHeight;
   static const double _leftMargin = 50.0;
@@ -552,10 +570,13 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
   void initState() {
     super.initState();
     _currentDetail = widget.detail;
+    // If the detail has a non-empty category, it has been saved before
+    _hasData = _currentDetail.category.isNotEmpty;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        // Scroll to the bar position or 8:00
-        final targetMin = _currentDetail.isAllDay ? 0 : _currentDetail.timeMinutes;
+        final targetMin = _hasData
+            ? (_currentDetail.isAllDay ? 0 : _currentDetail.timeMinutes)
+            : 8 * 60;
         final scrollTo = (targetMin > 60 ? (targetMin - 60) : 0) * _hourHeight / 60;
         _scrollController.jumpTo(scrollTo.clamp(0.0, _totalHeight - 200));
       }
@@ -568,6 +589,11 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
     super.dispose();
   }
 
+  int _snap15(int mins) {
+    final snapped = ((mins + 7) ~/ 15) * 15;
+    return snapped.clamp(0, 1425);
+  }
+
   String _minutesToTime(int mins) {
     final m = mins.clamp(0, 1439);
     final h = (m ~/ 60).toString().padLeft(2, '0');
@@ -575,7 +601,118 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
     return '$h:$mm';
   }
 
-  void _openChildModal() {
+  int _getMinutes(String timeStr) {
+    final parts = timeStr.split(':');
+    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+  }
+
+  // --- Bar drag (move entire bar) ---
+  void _startBarDrag(double globalY) {
+    setState(() {
+      _isDragging = true;
+      _dragStartY = globalY;
+      _dragStartMin = _getMinutes(_currentDetail.time);
+      _dragMoved = false;
+      _suppressClick = false;
+    });
+  }
+
+  void _onBarDragMove(double globalY) {
+    if (!_isDragging) return;
+    final deltaY = globalY - _dragStartY;
+    if (deltaY.abs() >= 3) _dragMoved = true;
+    final nextMin = _snap15(_dragStartMin + deltaY.round());
+    final duration = _currentDetail.endTimeMinutes - _currentDetail.timeMinutes;
+    final newEndMin = (nextMin + duration).clamp(0, 1440);
+    setState(() {
+      _currentDetail = DayDetail(
+        category: _currentDetail.category,
+        time: _minutesToTime(nextMin),
+        endTime: _minutesToTime(newEndMin),
+        isAllDay: _currentDetail.isAllDay,
+        description: _currentDetail.description,
+        iconColor: _currentDetail.iconColor,
+        shoppingList: _currentDetail.shoppingList,
+      );
+    });
+    widget.onSave(_currentDetail);
+  }
+
+  void _endBarDrag() {
+    if (!_isDragging) return;
+    if (_dragMoved) {
+      _suppressClick = true;
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (mounted) setState(() => _suppressClick = false);
+      });
+    }
+    setState(() => _isDragging = false);
+  }
+
+  // --- Creation frame (potchi) ---
+  void _startCreation(int hour) {
+    final startMin = hour * 60;
+    setState(() {
+      _isCreating = true;
+      _createStartMin = startMin;
+      _createEndMin = startMin + 60;
+    });
+  }
+
+  void _cancelCreation() {
+    setState(() => _isCreating = false);
+  }
+
+  void _startHandleDrag(String handle) {
+    setState(() => _creatingHandle = handle);
+  }
+
+  void _onHandleDragMove(double globalY) {
+    if (_creatingHandle == null) return;
+    final delta = globalY - _handleDragStartY;
+    setState(() {
+      if (_creatingHandle == 'top') {
+        final newStart = _snap15(_handleDragStartMin + delta.round());
+        if (newStart <= _createEndMin - 15) _createStartMin = newStart;
+      } else {
+        final newEnd = _snap15(_handleDragStartMin + delta.round());
+        if (newEnd >= _createStartMin + 15) _createEndMin = newEnd;
+      }
+    });
+  }
+
+  void _endHandleDrag() {
+    setState(() => _creatingHandle = null);
+  }
+
+  void _openCreateModal() {
+    // Open child modal with potchi time range as initial time
+    final initDetail = DayDetail(
+      iconColor: widget.parentColor,
+      time: _minutesToTime(_createStartMin),
+      endTime: _minutesToTime(_createEndMin),
+    );
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _DayDetailModal(
+          dateStr: widget.dateStr,
+          parentTitle: widget.parentTitle,
+          detail: initDetail,
+          onSave: (dd) {
+            setState(() {
+              _currentDetail = dd;
+              _hasData = true;
+              _isCreating = false;
+            });
+            widget.onSave(dd);
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openEditModal() {
+    if (_suppressClick) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => _DayDetailModal(
@@ -583,7 +720,10 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
           parentTitle: widget.parentTitle,
           detail: _currentDetail,
           onSave: (dd) {
-            setState(() => _currentDetail = dd);
+            setState(() {
+              _currentDetail = dd;
+              _hasData = true;
+            });
             widget.onSave(dd);
           },
         ),
@@ -599,23 +739,31 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
     final dow = d.weekday % 7;
     final weekDayStr = kWeekDays[dow];
 
-    // Compute bar position
+    // Compute bar position (only if has data)
     final int startMin;
     final int endMin;
     final String timeText;
-    if (_currentDetail.isAllDay) {
-      startMin = 0;
-      endMin = 60;
-      timeText = '\u7D42\u65E5';
+    final Color barColor;
+    if (_hasData) {
+      if (_currentDetail.isAllDay) {
+        startMin = 0;
+        endMin = 60;
+        timeText = '終日';
+      } else {
+        startMin = _currentDetail.timeMinutes;
+        endMin = _currentDetail.endTimeMinutes;
+        timeText = '${_currentDetail.time}〜${_minutesToTime(endMin)}';
+      }
+      barColor = _currentDetail.category.isNotEmpty
+          ? _currentDetail.iconColor
+          : widget.parentColor;
     } else {
-      startMin = _currentDetail.timeMinutes;
-      endMin = _currentDetail.endTimeMinutes;
-      timeText = '${_currentDetail.time}\u301C${_minutesToTime(endMin)}';
+      startMin = 0;
+      endMin = 0;
+      timeText = '';
+      barColor = widget.parentColor;
     }
     final barHeight = (endMin - startMin).toDouble().clamp(30.0, _totalHeight);
-    final barColor = _currentDetail.category.isNotEmpty
-        ? _currentDetail.iconColor
-        : widget.parentColor;
 
     return Scaffold(
       backgroundColor: darkMode ? const Color(0xFF111827) : kBgColor,
@@ -634,7 +782,7 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                       children: [
                         Icon(Icons.arrow_back, size: 20, color: darkMode ? Colors.white : kDarkTextColor),
                         const SizedBox(width: 4),
-                        Text('\u623B\u308B', style: TextStyle(fontWeight: FontWeight.w500, color: darkMode ? Colors.white : kDarkTextColor)),
+                        Text('戻る', style: TextStyle(fontWeight: FontWeight.w500, color: darkMode ? Colors.white : kDarkTextColor)),
                       ],
                     ),
                   ),
@@ -642,11 +790,11 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${d.month}\u6708${d.day}\u65E5',
+                        '${d.month}月${d.day}日',
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: darkMode ? Colors.white : kDarkTextColor),
                       ),
                       Text(
-                        '$weekDayStr\u66DC\u65E5',
+                        '$weekDayStr曜日',
                         style: TextStyle(fontSize: 12, color: darkMode ? Colors.white38 : Colors.black38),
                       ),
                     ],
@@ -664,89 +812,223 @@ class _DayTimelineScreenState extends State<_DayTimelineScreen> {
                   border: Border.all(color: darkMode ? Colors.grey[800]! : Colors.grey[200]!),
                 ),
                 clipBehavior: Clip.hardEdge,
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  child: SizedBox(
-                    height: _totalHeight,
-                    child: Stack(
-                      children: [
-                        // Hour lines
-                        ...List.generate(24, (h) {
-                          return Positioned(
-                            top: h * _hourHeight,
-                            left: 0,
-                            right: 0,
-                            height: _hourHeight,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(color: darkMode ? Colors.grey[800]! : Colors.grey[100]!),
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  SizedBox(
-                                    width: _leftMargin,
-                                    child: Padding(
-                                      padding: const EdgeInsets.only(right: 4, top: 2),
-                                      child: Text(
-                                        '$h:00',
-                                        textAlign: TextAlign.right,
-                                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                                      ),
+                child: Listener(
+                  onPointerMove: (e) {
+                    if (_isDragging) {
+                      _onBarDragMove(e.position.dy);
+                    } else if (_creatingHandle != null) {
+                      _onHandleDragMove(e.position.dy);
+                    }
+                  },
+                  onPointerUp: (_) {
+                    _endBarDrag();
+                    _endHandleDrag();
+                  },
+                  onPointerCancel: (_) {
+                    _endBarDrag();
+                    _endHandleDrag();
+                  },
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: SizedBox(
+                      height: _totalHeight,
+                      child: Stack(
+                        children: [
+                          // Hour lines (tappable for potchi creation)
+                          ...List.generate(24, (h) {
+                            return Positioned(
+                              top: h * _hourHeight,
+                              left: 0,
+                              right: 0,
+                              height: _hourHeight,
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (_isCreating) {
+                                    _cancelCreation();
+                                  } else if (!_hasData) {
+                                    _startCreation(h);
+                                  }
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      top: BorderSide(color: darkMode ? Colors.grey[800]! : Colors.grey[100]!),
                                     ),
                                   ),
-                                  Expanded(child: Container(color: Colors.transparent)),
-                                ],
-                              ),
-                            ),
-                          );
-                        }),
-                        // The bar
-                        Positioned(
-                          top: startMin.toDouble(),
-                          left: _leftMargin + 6,
-                          right: 8,
-                          height: barHeight,
-                          child: GestureDetector(
-                            onTap: _openChildModal,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: barColor.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border(left: BorderSide(color: barColor, width: 4)),
-                                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2)],
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Row(
+                                  child: Row(
                                     children: [
-                                      if (_currentDetail.category.isNotEmpty)
-                                        buildCategoryIcon(_currentDetail.category, size: 12, color: barColor),
-                                      if (_currentDetail.category.isNotEmpty)
-                                        const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text(
-                                          timeText,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w500,
-                                            color: darkMode ? Colors.white70 : Colors.grey[700],
+                                      SizedBox(
+                                        width: _leftMargin,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(right: 4, top: 2),
+                                          child: Text(
+                                            '$h:00',
+                                            textAlign: TextAlign.right,
+                                            style: TextStyle(fontSize: 10, color: Colors.grey[600]),
                                           ),
-                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Expanded(child: Container(color: Colors.transparent)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                          // Creation frame (potchi) - only when no data yet
+                          if (_isCreating && !_hasData)
+                            Positioned(
+                              top: _createStartMin.toDouble(),
+                              left: _leftMargin + 6,
+                              right: 8,
+                              height: (_createEndMin - _createStartMin).toDouble(),
+                              child: GestureDetector(
+                                onTap: _openCreateModal,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: kThemeColor.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: kThemeColor, width: 1.5),
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      // Top handle
+                                      Positioned(
+                                        top: -6,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                          child: GestureDetector(
+                                            onVerticalDragStart: (d) {
+                                              _handleDragStartY = d.globalPosition.dy;
+                                              _handleDragStartMin = _createStartMin;
+                                              _startHandleDrag('top');
+                                            },
+                                            onVerticalDragUpdate: (d) => _onHandleDragMove(d.globalPosition.dy),
+                                            onVerticalDragEnd: (_) => _endHandleDrag(),
+                                            child: Container(
+                                              width: 48,
+                                              height: 28,
+                                              color: Colors.transparent,
+                                              child: Center(
+                                                child: Container(
+                                                  width: 30,
+                                                  height: 10,
+                                                  decoration: BoxDecoration(
+                                                    color: kThemeColor,
+                                                    borderRadius: BorderRadius.circular(5),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Bottom handle
+                                      Positioned(
+                                        bottom: -6,
+                                        left: 0,
+                                        right: 0,
+                                        child: Center(
+                                          child: GestureDetector(
+                                            onVerticalDragStart: (d) {
+                                              _handleDragStartY = d.globalPosition.dy;
+                                              _handleDragStartMin = _createEndMin;
+                                              _startHandleDrag('bottom');
+                                            },
+                                            onVerticalDragUpdate: (d) => _onHandleDragMove(d.globalPosition.dy),
+                                            onVerticalDragEnd: (_) => _endHandleDrag(),
+                                            child: Container(
+                                              width: 48,
+                                              height: 28,
+                                              color: Colors.transparent,
+                                              child: Center(
+                                                child: Container(
+                                                  width: 30,
+                                                  height: 10,
+                                                  decoration: BoxDecoration(
+                                                    color: kThemeColor,
+                                                    borderRadius: BorderRadius.circular(5),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      // Time labels
+                                      Center(
+                                        child: Text(
+                                          '${_minutesToTime(_createStartMin)} 〜 ${_minutesToTime(_createEndMin)}',
+                                          style: TextStyle(fontSize: 11, color: kThemeColor, fontWeight: FontWeight.w500),
                                         ),
                                       ),
                                     ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ],
+                          // Saved bar (draggable + tappable to edit)
+                          if (_hasData)
+                            Positioned(
+                              top: startMin.toDouble(),
+                              left: _leftMargin + 6,
+                              right: 8,
+                              height: barHeight,
+                              child: GestureDetector(
+                                onTap: _openEditModal,
+                                onVerticalDragStart: _currentDetail.isAllDay
+                                    ? null
+                                    : (details) => _startBarDrag(details.globalPosition.dy),
+                                onVerticalDragUpdate: _currentDetail.isAllDay
+                                    ? null
+                                    : (details) => _onBarDragMove(details.globalPosition.dy),
+                                onVerticalDragEnd: _currentDetail.isAllDay
+                                    ? null
+                                    : (_) => _endBarDrag(),
+                                onVerticalDragCancel: _currentDetail.isAllDay
+                                    ? null
+                                    : () => _endBarDrag(),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: barColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border(left: BorderSide(color: barColor, width: 4)),
+                                    boxShadow: _isDragging
+                                        ? [BoxShadow(color: barColor.withValues(alpha: 0.3), blurRadius: 8)]
+                                        : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 2)],
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          if (_currentDetail.category.isNotEmpty)
+                                            buildCategoryIcon(_currentDetail.category, size: 12, color: barColor),
+                                          if (_currentDetail.category.isNotEmpty)
+                                            const SizedBox(width: 4),
+                                          Expanded(
+                                            child: Text(
+                                              timeText,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color: darkMode ? Colors.white70 : Colors.grey[700],
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
