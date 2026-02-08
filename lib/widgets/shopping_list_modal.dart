@@ -131,7 +131,7 @@ class _ShoppingListModalState extends State<ShoppingListModal> {
                         controller: _draftController,
                         focusNode: _focusNode,
                         decoration: const InputDecoration(
-                          hintText: '品目を入力...',
+                          hintText: '項目を入力...',
                           border: InputBorder.none,
                           contentPadding:
                               EdgeInsets.symmetric(horizontal: 8),

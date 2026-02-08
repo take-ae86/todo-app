@@ -45,6 +45,19 @@ const Map<String, IconData> kCategoryIcons = {
   'その他': Icons.more_horiz,
 };
 
+const Map<String, String> kCategoryListName = {
+  '買い物': '買い物リスト',
+  '食事': 'メニューリスト',
+  '遊び': 'やることリスト',
+  '仕事': 'タスクリスト',
+  '休み': '予定リスト',
+  '学校': '課題リスト',
+  '交通': '乗換リスト',
+  '旅行': '持ち物リスト',
+  '趣味': 'やりたいリスト',
+  'その他': 'チェックリスト',
+};
+
 const List<String> kWeekDays = ['日', '月', '火', '水', '木', '金', '土'];
 
 /// Build a category icon widget. For '休み', renders a calendar icon

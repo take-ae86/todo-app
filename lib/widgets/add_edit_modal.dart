@@ -131,7 +131,7 @@ class _AddEditModalState extends State<AddEditModal> {
       MaterialPageRoute(
         builder: (_) => ShoppingListModal(
           title: _titleController.text.trim().isEmpty
-              ? '買い物'
+              ? (kCategoryListName[_category] ?? 'チェックリスト')
               : _titleController.text.trim(),
           initialItems: _shoppingListDraft,
           onSave: (items) {
@@ -203,8 +203,7 @@ class _AddEditModalState extends State<AddEditModal> {
                 ),
                 Row(
                   children: [
-                    if (_category == '買い物')
-                      GestureDetector(
+                    GestureDetector(
                         onTap: _openShoppingList,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -217,12 +216,12 @@ class _AddEditModalState extends State<AddEditModal> {
                             children: [
                               Icon(Icons.checklist, size: 16, color: kThemeColor),
                               const SizedBox(width: 4),
-                              Text('買い物リスト', style: TextStyle(fontSize: 12, color: kThemeColor)),
+                              Text(kCategoryListName[_category] ?? 'チェックリスト', style: TextStyle(fontSize: 12, color: kThemeColor)),
                             ],
                           ),
                         ),
                       ),
-                    if (_category == '買い物') const SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     if (widget.editingTodo != null) ...[
                       GestureDetector(
                         onTap: _remove,
