@@ -343,9 +343,8 @@ class _CalendarCell extends StatelessWidget {
       textColor = prov.darkMode ? Colors.grey[300]! : Colors.grey[700]!;
     }
 
-    // Reduce mini bar count if holiday takes space
-    final holidaySlot = holiday != null ? 1 : 0;
-    final maxMini = (4 - multiDayBarSlots - holidaySlot).clamp(0, 4);
+    // Always allow 4 mini bars (holiday label is small enough)
+    final maxMini = (4 - multiDayBarSlots).clamp(0, 4);
 
     return GestureDetector(
       onTap: () {
@@ -387,7 +386,7 @@ class _CalendarCell extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 1),
                   child: Container(
-                    height: 16,
+                    height: holiday != null ? 14 : 16,
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     decoration: BoxDecoration(
                       color: t.iconColor.withValues(alpha: 0.12),
