@@ -377,19 +377,11 @@ class _TimelineDayViewState extends State<TimelineDayView> {
                         final String timeText;
                         final bool isMultiDay = t.isMultiDay;
 
-                        // For multi-day todos, check if there's child details for this day
-                        final dayDetailList = isMultiDay ? t.dayDetails[dateStr] : null;
-                        final dayDetail = (dayDetailList != null && dayDetailList.isNotEmpty) ? dayDetailList.first : null;
 
                         if (isMultiDay) {
-                          // Multi-day parent bar: show title + period
-                          if (dayDetail != null && !dayDetail.isAllDay) {
-                            startMin = dayDetail.timeMinutes;
-                            endMin = dayDetail.endTimeMinutes;
-                          } else {
-                            startMin = 0;
-                            endMin = 60;
-                          }
+                          // Multi-day parent bar: always fixed 0:00-1:00
+                          startMin = 0;
+                          endMin = 60;
                           final startD = TodoItem.strToDate(t.date);
                           final endD = TodoItem.strToDate(t.endDate!);
                           timeText = '${startD.month}/${startD.day}〜${endD.month}/${endD.day}';

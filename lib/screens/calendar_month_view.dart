@@ -254,7 +254,7 @@ class _WeekRowWithBars extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 7,
                                 fontWeight: FontWeight.w500,
-                                color: bar.todo.iconColor,
+                                color: prov.darkMode ? Colors.white : Colors.grey[800],
                               ),
                               overflow: TextOverflow.ellipsis,
                               maxLines: 1,
