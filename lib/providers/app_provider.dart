@@ -9,8 +9,8 @@ class AppProvider extends ChangeNotifier {
   List<TodoItem> _todos = [];
   List<MemoItem> _memoList = [];
   AppView _currentView = AppView.calendar;
-  DateTime _currentDate = DateTime(2026, 1, 26);
-  DateTime _selectedDate = DateTime(2026, 1, 26);
+  DateTime _currentDate = DateTime.now();
+  DateTime _selectedDate = DateTime.now();
   bool _darkMode = false;
   bool _isLoaded = false;
 
